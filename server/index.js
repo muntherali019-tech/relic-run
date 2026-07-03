@@ -58,14 +58,26 @@ const DEFAULT_STATE = () => ({ subs: { junior: false, adult: false }, stars: 0, 
 app.get("/api/health", (_req, res) => res.json({ ok: true, hasKey: Boolean(KEY) }));
 
 /* ---------- AI proxy (keeps the API key server-side) ---------- */
-// Only models we intend to pay for; a hijacked client can't switch to a pricier one.
-const ALLOWED_MODELS = (process.env.ALLOWED_MODELS || "claude-sonnet-4-6,claude-haiku-4-5").split(",").map((s) => s.trim());
+// Per-feature model routing. The client sends a `feature` hint (questions,
+// mark, solve, chat, translate, …); MODEL_<FEATURE> env vars override the
+// default per feature — e.g. MODEL_TRANSLATE=claude-haiku-4-5 routes UI
+// translation to the cheaper model without touching tutoring quality.
+const MODEL_DEFAULT = process.env.MODEL_DEFAULT || "claude-sonnet-4-6";
+const modelFor = (feature) => process.env[`MODEL_${String(feature || "").toUpperCase().replace(/[^A-Z0-9]/g, "")}`] || MODEL_DEFAULT;
+// Only models we intend to pay for; a hijacked client can't switch to a pricier
+// one. Env-routed models are trusted automatically.
+const ALLOWED_MODELS = [...new Set([
+  ...(process.env.ALLOWED_MODELS || "claude-sonnet-4-6,claude-haiku-4-5").split(",").map((s) => s.trim()),
+  MODEL_DEFAULT,
+  ...Object.entries(process.env).filter(([k]) => k.startsWith("MODEL_")).map(([, v]) => String(v).trim()),
+])].filter(Boolean);
 const MAX_TOKENS_CAP = 4000;
 
 app.post("/api/claude", aiLimit, async (req, res) => {
   if (!KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY. Copy .env.example to .env and add your key." });
   try {
-    let { system, content, max_tokens = 1500, model = "claude-sonnet-4-6" } = req.body || {};
+    let { system, content, max_tokens = 1500, model, feature } = req.body || {};
+    if (!model) model = modelFor(feature);
     if (!ALLOWED_MODELS.includes(model)) model = ALLOWED_MODELS[0];
     max_tokens = Math.min(Math.max(1, Number(max_tokens) || 1500), MAX_TOKENS_CAP);
     const upstream = await fetch(ANTHROPIC_URL, {
