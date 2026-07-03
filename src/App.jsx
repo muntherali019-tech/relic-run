@@ -96,6 +96,13 @@ export default function App() {
   }, [state, bound?.childId]);
 
   const [screen, setScreen] = useState("home");
+  // Send focus (and scroll) to the new screen's main region so keyboard and
+  // screen-reader users land at the top of what just appeared.
+  useEffect(() => {
+    const el = document.querySelector("main");
+    if (el) { el.setAttribute("tabindex", "-1"); el.focus({ preventScroll: true }); }
+    window.scrollTo(0, 0);
+  }, [screen]);
   const [ks, setKs] = useState(null);
   const [subject, setSubject] = useState(null);
   const [topic, setTopic] = useState(null);
@@ -419,6 +426,10 @@ export default function App() {
   useEffect(() => {
     try { document.documentElement.dir = rtl ? "rtl" : "ltr"; document.documentElement.lang = String(voiceLang || "en").split("-")[0]; } catch {}
   }, [voiceLang, rtl]);
+  // First-launch language chooser so new users worldwide start in their own language.
+  // (Declared before the effects below that list `onboard` in their deps.)
+  const [onboard, setOnboard] = useState(() => { try { return localStorage.getItem("whisker.onboarded") !== "1"; } catch { return false; } });
+  function pickOnboardLang(code) { try { localStorage.setItem("whisker.onboarded", "1"); } catch {} if (code) setVoiceLang(code); setOnboard(false); }
   useEffect(() => {
     if (screen === "home" && guideOn && !onboard && !greetedRef.current) {
       greetedRef.current = true;
@@ -494,10 +505,7 @@ export default function App() {
     } catch {}
     return () => { alive = false; };
   }, []);
-  // First-launch language chooser so new users worldwide start in their own language.
-  const [onboard, setOnboard] = useState(() => { try { return localStorage.getItem("whisker.onboarded") !== "1"; } catch { return false; } });
   const detectedLang = LANGUAGES.find((l) => String((typeof navigator !== "undefined" && navigator.language) || "").toLowerCase().startsWith(l.id));
-  function pickOnboardLang(code) { try { localStorage.setItem("whisker.onboarded", "1"); } catch {} if (code) setVoiceLang(code); setOnboard(false); }
   const billingNote = billing.mode() === "stripe"
     ? t("A grown-up confirms before any purchase. Secure checkout is handled by Stripe.")
     : billing.mode() === "play"

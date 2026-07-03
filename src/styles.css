@@ -25,7 +25,7 @@ main{flex:1}
 .topbtns{display:flex;gap:8px;align-items:center}
 .starcount{display:flex;align-items:center;gap:6px;background:#fff;border:2px solid #FFE0A8;border-radius:999px;
   padding:6px 12px;font-weight:800;font-family:'Fredoka';box-shadow:0 4px 0 #FFE0A8}
-.iconbtn{border:none;background:#fff;border-radius:14px;width:42px;height:42px;display:grid;place-items:center;
+.iconbtn{border:none;background:#fff;border-radius:14px;width:44px;height:44px;display:grid;place-items:center;
   box-shadow:0 4px 0 #eadfcf;cursor:pointer;color:var(--ink)}
 .iconbtn:active{transform:translateY(2px);box-shadow:0 2px 0 #eadfcf}
 
@@ -368,3 +368,6 @@ select.tin{appearance:none;-webkit-appearance:none}
 .lrank{font-weight:800;font-size:18px;min-width:26px;text-align:center}
 .lname{flex:1;font-weight:800;font-family:'Nunito'}
 .lstars{font-weight:800;color:#b9852b;display:inline-flex;align-items:center;gap:4px}
+
+/* Programmatic focus target for screen changes (no visible ring on mouse use) */
+main:focus{outline:none}
