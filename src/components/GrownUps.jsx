@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useT } from "../lib/i18n.js";
+import { useT, tf } from "../lib/i18n.js";
 import {
   ArrowLeft, LogOut, Plus, Check, X, Sparkles, Loader2, Trash2,
   GraduationCap, Users, Star, Link2, RotateCcw, RefreshCw, FileText, Mail,
@@ -30,7 +30,7 @@ function GoalSection({ token, child, role }) {
   async function suggest() {
     setAiBusy(true); setErr("");
     try { const g = await suggestGoal({ ks: child.ks, subject: form.subject, childName: child.name }); setForm((f) => ({ ...f, title: g.title || f.title, detail: g.detail || f.detail })); }
-    catch { setErr("Couldn't reach the AI — check your connection and API key."); }
+    catch { setErr(tr("Couldn't reach the AI — check your connection and API key.")); }
     finally { setAiBusy(false); }
   }
   async function add() {
@@ -46,49 +46,49 @@ function GoalSection({ token, child, role }) {
 
   return (
     <>
-      <div className="sectitle">Goals &amp; tasks</div>
+      <div className="sectitle">{tr("Goals & tasks")}</div>
       <p className="muted" style={{ margin: "0 0 8px" }}>
-        Your {role} track is separate from the {role === "parent" ? "teacher" : "parent"}'s. You set and mark your own.
+        {role === "parent" ? tr("Your parent track is separate from the teacher's. You set and mark your own.") : tr("Your teacher track is separate from the parent's. You set and mark your own.")}
       </p>
       <div className="card">
-        {loading ? <p className="muted" style={{ textAlign: "center", margin: 8 }}>Loading…</p>
-          : goals.length === 0 ? <p className="muted" style={{ textAlign: "center", margin: 8 }}>No goals yet. Add the first below.</p>
+        {loading ? <p className="muted" style={{ textAlign: "center", margin: 8 }}>{tr("Loading…")}</p>
+          : goals.length === 0 ? <p className="muted" style={{ textAlign: "center", margin: 8 }}>{tr("No goals yet. Add the first below.")}</p>
           : goals.map((g) => (
             <div className="goalrow" key={g.id}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span className={`trackbadge ${g.setBy}`}>{g.setBy === "parent" ? "Parent" : "Teacher"}</span>
+                <span className={`trackbadge ${g.setBy}`}>{g.setBy === "parent" ? tr("Parent") : tr("Teacher")}</span>
                 {g.subject && SUBJ[g.subject] && <span className="muted">{SUBJ[g.subject].name}</span>}
                 <span style={{ marginLeft: "auto", fontWeight: 800, color: g.status === "done" ? "var(--good)" : "var(--muted)" }}>
-                  {g.status === "done" ? "✓ Done" : "Open"}
+                  {g.status === "done" ? "✓ " + tr("Done") : tr("Open")}
                 </span>
               </div>
               <div style={{ fontWeight: 800, marginTop: 4, textDecoration: g.status === "done" ? "line-through" : "none" }}>{g.title}</div>
               {g.detail && <div className="muted" style={{ marginTop: 2 }}>{g.detail}</div>}
               {mine(g) ? (
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                  <button className="chip" onClick={() => toggle(g)}>{g.status === "done" ? <><RotateCcw size={14} /> Reopen</> : <><Check size={14} /> Mark done</>}</button>
-                  <button className="chip" onClick={() => remove(g)} style={{ color: "var(--bad)" }}><Trash2 size={14} /> Delete</button>
+                  <button className="chip" onClick={() => toggle(g)}>{g.status === "done" ? <><RotateCcw size={14} /> {tr("Reopen")}</> : <><Check size={14} /> {tr("Mark done")}</>}</button>
+                  <button className="chip" onClick={() => remove(g)} style={{ color: "var(--bad)" }}><Trash2 size={14} /> {tr("Delete")}</button>
                 </div>
-              ) : <div className="muted" style={{ marginTop: 6, fontStyle: "italic" }}>Set by the {g.setBy} — view only</div>}
+              ) : <div className="muted" style={{ marginTop: 6, fontStyle: "italic" }}>{g.setBy === "parent" ? tr("Set by the parent — view only") : tr("Set by the teacher — view only")}</div>}
             </div>
           ))}
       </div>
 
       <div className="card" style={{ marginTop: 12 }}>
         <div style={{ fontWeight: 800, marginBottom: 4 }}>{tr("Add a goal or task")}</div>
-        <div className="field"><label>Title</label>
-          <input className="tin" value={form.title} placeholder="e.g. Practise 7× table" onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-        <div className="field"><label>Details (optional)</label>
-          <textarea className="txtin" style={{ marginTop: 0 }} value={form.detail} placeholder="What should they do?" onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
-        <div className="field"><label>Subject (optional)</label>
+        <div className="field"><label>{tr("Title")}</label>
+          <input className="tin" value={form.title} placeholder={tr("e.g. Practise the 7 times table")} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+        <div className="field"><label>{tr("Details (optional)")}</label>
+          <textarea className="txtin" style={{ marginTop: 0 }} value={form.detail} placeholder={tr("What should they do?")} onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
+        <div className="field"><label>{tr("Subject (optional)")}</label>
           <select className="tin" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })}>
-            <option value="">Any</option>
+            <option value="">{tr("Any")}</option>
             {SUBJECTS_BY_KS[child.ks].map((s) => <option key={s} value={s}>{SUBJ[s].name}</option>)}
           </select></div>
         {err && <p className="err">{err}</p>}
         <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
           <button className="bigbtn ghost" style={{ marginTop: 0, flex: 1 }} disabled={aiBusy} onClick={suggest}>
-            {aiBusy ? <Loader2 className="wiggle" size={18} /> : <><Sparkles size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />Suggest with AI</>}
+            {aiBusy ? <Loader2 className="wiggle" size={18} /> : <><Sparkles size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{tr("Suggest with AI")}</>}
           </button>
           <button className="bigbtn purple" style={{ marginTop: 0, flex: 1 }} disabled={busy || !form.title.trim()} onClick={add}>
             {busy ? <Loader2 className="wiggle" size={18} /> : <><Plus size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{tr("Add task")}</>}
@@ -99,17 +99,20 @@ function GoalSection({ token, child, role }) {
   );
 }
 
-const ChildStats = ({ o }) => (
-  <>
-    <div className="statgrid" style={{ marginTop: 12 }}>
-      <div className="stat"><b>{o.stars}</b><span>Stars</span></div>
-      <div className="stat"><b>{o.accuracy}%</b><span>Accuracy</span></div>
-      <div className="stat"><b>{o.answered}</b><span>Answered</span></div>
-      <div className="stat"><b>{o.rounds}</b><span>Rounds</span></div>
-    </div>
-    {o.coursesTaken > 0 && <p className="muted" style={{ textAlign: "center", marginTop: 8 }}>🎓 Courses: {o.coursesPassed} passed / {o.coursesTaken} taken</p>}
-  </>
-);
+const ChildStats = ({ o }) => {
+  const tr = useT();
+  return (
+    <>
+      <div className="statgrid" style={{ marginTop: 12 }}>
+        <div className="stat"><b>{o.stars}</b><span>{tr("Stars")}</span></div>
+        <div className="stat"><b>{o.accuracy}%</b><span>{tr("Accuracy")}</span></div>
+        <div className="stat"><b>{o.answered}</b><span>{tr("Answered")}</span></div>
+        <div className="stat"><b>{o.rounds}</b><span>{tr("Rounds")}</span></div>
+      </div>
+      {o.coursesTaken > 0 && <p className="muted" style={{ textAlign: "center", marginTop: 8 }}>🎓 {tf("Courses: {p} passed / {t} taken", { p: o.coursesPassed, t: o.coursesTaken })}</p>}
+    </>
+  );
+};
 
 export default function GrownUps({ onClose, onBind, onPrivacy }) {
   const tr = useT();
@@ -181,15 +184,15 @@ export default function GrownUps({ onClose, onBind, onPrivacy }) {
   async function joinTeacherClass() {
     if (!joinCode.trim() || !activeChild) return;
     setJoinMsg("");
-    try { const r = await cloud.joinClass(t, activeChild.id, joinCode); setJoinMsg(`Linked to "${r.className}". Their teacher can now set work too.`); setJoinCode(""); }
+    try { const r = await cloud.joinClass(t, activeChild.id, joinCode); setJoinMsg(tf('Linked to "{name}". Their teacher can now set work too.', { name: r.className })); setJoinCode(""); }
     catch (e) { setJoinMsg(e.message); }
   }
   async function deleteAccount() {
-    if (!window.confirm("Delete your account and all associated data? This cannot be undone.")) return;
+    if (!window.confirm(tr("Delete your account and all associated data? This cannot be undone."))) return;
     try { await cloud.deleteAccount(t); signOut(); } catch (e) { setDataErr(e.message); }
   }
   async function removeChild() {
-    if (!activeChild || !window.confirm(`Remove ${activeChild.name} and all their data? This cannot be undone.`)) return;
+    if (!activeChild || !window.confirm(tf("Remove {name} and all their data? This cannot be undone.", { name: activeChild.name }))) return;
     try { await cloud.deleteChild(t, activeChild.id); setActiveChild(null); setView("parent"); refreshChildren(); }
     catch (e) { setDataErr(e.message); }
   }
@@ -266,7 +269,7 @@ Sent from Education Academy`;
         <div className="greet" style={{ marginTop: 4 }}>
           <Mochi size={100} expression="idle" />
           <h2 className="fred" style={{ marginTop: 6 }}>{tr("Parent & teacher portal")}</h2>
-          <p>Track progress, set goals, and assign work</p>
+          <p>{tr("Track progress, set goals, and assign work")}</p>
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
           <button className={`seg ${mode === "in" ? "on" : ""}`} style={{ flex: 1 }} onClick={() => setMode("in")}>{tr("Sign in")}</button>
@@ -275,23 +278,23 @@ Sent from Education Academy`;
         <div className="card" style={{ marginTop: 12 }}>
           {mode === "up" && (
             <>
-              <div className="field"><label>I am a…</label>
+              <div className="field"><label>{tr("I am a…")}</label>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <button className={`seg ${f.role === "parent" ? "on" : ""}`} style={{ flex: 1 }} onClick={() => setF({ ...f, role: "parent" })}>Parent</button>
-                  <button className={`seg ${f.role === "teacher" ? "on" : ""}`} style={{ flex: 1 }} onClick={() => setF({ ...f, role: "teacher" })}>Teacher</button>
+                  <button className={`seg ${f.role === "parent" ? "on" : ""}`} style={{ flex: 1 }} onClick={() => setF({ ...f, role: "parent" })}>{tr("Parent")}</button>
+                  <button className={`seg ${f.role === "teacher" ? "on" : ""}`} style={{ flex: 1 }} onClick={() => setF({ ...f, role: "teacher" })}>{tr("Teacher")}</button>
                 </div>
               </div>
-              <div className="field"><label>Name</label><input className="tin" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div>
+              <div className="field"><label>{tr("Name")}</label><input className="tin" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div>
             </>
           )}
-          <div className="field"><label>Email</label><input className="tin" type="email" autoComplete="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
-          <div className="field"><label>Password</label><input className="tin" type="password" autoComplete={mode === "up" ? "new-password" : "current-password"} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} onKeyDown={(e) => e.key === "Enter" && submitAuth()} /></div>
+          <div className="field"><label>{tr("Email")}</label><input className="tin" type="email" autoComplete="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
+          <div className="field"><label>{tr("Password")}</label><input className="tin" type="password" autoComplete={mode === "up" ? "new-password" : "current-password"} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} onKeyDown={(e) => e.key === "Enter" && submitAuth()} /></div>
           {authErr && <p className="err">{authErr}</p>}
           <button className="bigbtn purple" disabled={authBusy} onClick={submitAuth}>
-            {authBusy ? <Loader2 className="wiggle" size={18} /> : mode === "up" ? "Create account" : "Sign in"}
+            {authBusy ? <Loader2 className="wiggle" size={18} /> : mode === "up" ? tr("Create account") : tr("Sign in")}
           </button>
         </div>
-        <p className="note">Or <button className="linkbtn" onClick={onClose}>keep using this device without an account</button>. · <button className="linkbtn" onClick={onPrivacy}>Privacy policy</button></p>
+        <p className="note">{tr("Or")} <button className="linkbtn" onClick={onClose}>{tr("keep using this device without an account")}</button>. · <button className="linkbtn" onClick={onPrivacy}>{tr("Privacy policy")}</button></p>
       </main>
     );
   }
@@ -303,8 +306,8 @@ Sent from Education Academy`;
         <Back to={onClose} label="Back to app" />
         <div className="greet" style={{ marginTop: 4 }}>
           <Users size={38} color="#6b4fb0" />
-          <h2 className="fred" style={{ marginTop: 6 }}>Hi {session.user.name || "there"} 👋</h2>
-          <p>Your children's learning health</p>
+          <h2 className="fred" style={{ marginTop: 6 }}>{tf("Hi {name} 👋", { name: session.user.name || tr("there") })}</h2>
+          <p>{tr("Your children's learning health")}</p>
         </div>
         {dataErr && <p className="err">{dataErr}</p>}
         {children.length === 0 && <p className="muted" style={{ textAlign: "center" }}>{tr("Add your first child to start tracking.")}</p>}
@@ -321,8 +324,8 @@ Sent from Education Academy`;
         </div>
         {childForm.open ? (
           <div className="card" style={{ marginTop: 12 }}>
-            <div className="field"><label>Child's name</label><input className="tin" value={childForm.name} onChange={(e) => setChildForm({ ...childForm, name: e.target.value })} /></div>
-            <div className="field"><label>Key stage</label>
+            <div className="field"><label>{tr("Child's name")}</label><input className="tin" value={childForm.name} onChange={(e) => setChildForm({ ...childForm, name: e.target.value })} /></div>
+            <div className="field"><label>{tr("Key stage")}</label>
               <select className="tin" value={childForm.ks} onChange={(e) => setChildForm({ ...childForm, ks: e.target.value })}>{KS_OPTIONS.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select></div>
             <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
               <button className="bigbtn ghost" style={{ marginTop: 0, flex: 1 }} onClick={() => setChildForm({ name: "", ks: "ks1", open: false })}>{tr("Cancel")}</button>
@@ -332,7 +335,7 @@ Sent from Education Academy`;
         ) : <button className="bigbtn" onClick={() => setChildForm({ ...childForm, open: true })}><Plus size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{tr("Add a child")}</button>}
         <div className="card" style={{ marginTop: 12 }}>
           <div className="setrow" style={{ borderBottom: "none", padding: 0 }}>
-            <div><div style={{ fontWeight: 800 }}>Weekly email summary</div><div className="muted">Sent to {session.user.email}.</div></div>
+            <div><div style={{ fontWeight: 800 }}>{tr("Weekly email summary")}</div><div className="muted">{tf("Sent to {email}.", { email: session.user.email })}</div></div>
             <button className={`switch ${session.user.weeklyEmail ? "on" : ""}`} role="switch" aria-checked={!!session.user.weeklyEmail} aria-label="Weekly email summary" onClick={toggleWeekly}><span /></button>
           </div>
         </div>
@@ -355,7 +358,7 @@ Sent from Education Academy`;
         <ChildStats o={activeChild.overview} />
 
         <button className="bigbtn sky" disabled={reportBusy} onClick={makeReport}>
-          {reportBusy ? <Loader2 className="wiggle" size={18} /> : <><FileText size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />Progress report</>}
+          {reportBusy ? <Loader2 className="wiggle" size={18} /> : <><FileText size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{tr("Progress report")}</>}
         </button>
         {report && (
           <div className="card" style={{ marginTop: 12 }}>
@@ -368,13 +371,13 @@ Sent from Education Academy`;
         )}
 
         <button className="bigbtn mint" onClick={() => { onBind?.(activeChild.id, t); }}>
-          <RefreshCw size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />Sync this device to {activeChild.name}
+          <RefreshCw size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{tf("Sync this device to {name}", { name: activeChild.name })}
         </button>
-        <p className="muted" style={{ textAlign: "center", margin: "6px 4px 0" }}>On {activeChild.name}'s own device, sign in here and tap this — their progress will follow them.</p>
+        <p className="muted" style={{ textAlign: "center", margin: "6px 4px 0" }}>{tf("On {name}'s own device, sign in here and tap this — their progress will follow them.", { name: activeChild.name })}</p>
 
         <div className="card" style={{ marginTop: 14 }}>
-          <div style={{ fontWeight: 800 }}><Link2 size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Link to a teacher's class</div>
-          <p className="muted" style={{ margin: "4px 0 8px" }}>Enter the code a teacher gave you so they can set work too (kept separate from your goals).</p>
+          <div style={{ fontWeight: 800 }}><Link2 size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />{tr("Link to a teacher's class")}</div>
+          <p className="muted" style={{ margin: "4px 0 8px" }}>{tr("Enter the code a teacher gave you so they can set work too (kept separate from your goals).")}</p>
           <div style={{ display: "flex", gap: 8 }}>
             <input className="tin" style={{ flex: 1, textTransform: "uppercase" }} placeholder="ABC123" value={joinCode} onChange={(e) => setJoinCode(e.target.value)} />
             <button className="bigbtn purple" style={{ marginTop: 0, width: "auto", padding: "12px 18px" }} onClick={joinTeacherClass}>{tr("Link")}</button>
@@ -383,7 +386,7 @@ Sent from Education Academy`;
         </div>
 
         <GoalSection token={t} child={activeChild} role="parent" />
-        <button className="linkbtn" style={{ color: "var(--bad)", display: "block", margin: "16px auto 0" }} onClick={removeChild}>Remove {activeChild.name} &amp; their data</button>
+        <button className="linkbtn" style={{ color: "var(--bad)", display: "block", margin: "16px auto 0" }} onClick={removeChild}>{tf("Remove {name} & their data", { name: activeChild.name })}</button>
       </main>
     );
   }
@@ -395,8 +398,8 @@ Sent from Education Academy`;
         <Back to={onClose} label="Back to app" />
         <div className="greet" style={{ marginTop: 4 }}>
           <GraduationCap size={40} color="#6b4fb0" />
-          <h2 className="fred" style={{ marginTop: 6 }}>Hi {session.user.name || "there"} 👋</h2>
-          <p>Your classes &amp; pupils</p>
+          <h2 className="fred" style={{ marginTop: 6 }}>{tf("Hi {name} 👋", { name: session.user.name || tr("there") })}</h2>
+          <p>{tr("Your classes & pupils")}</p>
         </div>
         {dataErr && <p className="err">{dataErr}</p>}
         {!activeClass ? (
@@ -408,14 +411,14 @@ Sent from Education Academy`;
                   <div className="toolicon" style={{ background: "var(--sky-soft)" }}><Users size={26} color="#2b80d6" /></div>
                   <div style={{ flex: 1 }}>
                     <div className="fred" style={{ fontWeight: 600, fontSize: 18 }}>{c.name}</div>
-                    <div className="muted">{c.pupils.length} pupil{c.pupils.length === 1 ? "" : "s"} · code <b>{c.code}</b></div>
+                    <div className="muted">{c.pupils.length === 1 ? tr("1 pupil") : tf("{n} pupils", { n: c.pupils.length })} · {tr("code")} <b>{c.code}</b></div>
                   </div>
                 </button>
               ))}
             </div>
             {classForm.open ? (
               <div className="card" style={{ marginTop: 12 }}>
-                <div className="field"><label>Class name</label><input className="tin" value={classForm.name} placeholder="e.g. Year 4 Maths" onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} /></div>
+                <div className="field"><label>{tr("Class name")}</label><input className="tin" value={classForm.name} placeholder={tr("e.g. Year 4 Maths")} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} /></div>
                 <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                   <button className="bigbtn ghost" style={{ marginTop: 0, flex: 1 }} onClick={() => setClassForm({ name: "", open: false })}>{tr("Cancel")}</button>
                   <button className="bigbtn purple" style={{ marginTop: 0, flex: 1 }} onClick={addClass}>{tr("Create")}</button>
@@ -430,10 +433,10 @@ Sent from Education Academy`;
             <Back to={() => setActiveClass(null)} label="Back to classes" />
             <div className="card" style={{ marginTop: 8 }}>
               <div className="fred" style={{ fontWeight: 600, fontSize: 18 }}>{activeClass.name}</div>
-              <p className="muted" style={{ margin: "4px 0 8px" }}>Share this code with parents so they can link their child:</p>
+              <p className="muted" style={{ margin: "4px 0 8px" }}>{tr("Share this code with parents so they can link their child:")}</p>
               <span className="codechip">{activeClass.code}</span>
             </div>
-            <div className="sectitle">Pupils</div>
+            <div className="sectitle">{tr("Pupils")}</div>
             <div className="pickgrid">
               {activeClass.pupils.map((p) => (
                 <button key={p.id} className="card toolcard" onClick={() => { setActivePupil(p); setView("teacherPupil"); }}>
@@ -447,8 +450,8 @@ Sent from Education Academy`;
             </div>
             {pupilForm.open ? (
               <div className="card" style={{ marginTop: 12 }}>
-                <div className="field"><label>Pupil's name</label><input className="tin" value={pupilForm.name} onChange={(e) => setPupilForm({ ...pupilForm, name: e.target.value })} /></div>
-                <div className="field"><label>Key stage</label>
+                <div className="field"><label>{tr("Pupil's name")}</label><input className="tin" value={pupilForm.name} onChange={(e) => setPupilForm({ ...pupilForm, name: e.target.value })} /></div>
+                <div className="field"><label>{tr("Key stage")}</label>
                   <select className="tin" value={pupilForm.ks} onChange={(e) => setPupilForm({ ...pupilForm, ks: e.target.value })}>{KS_OPTIONS.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select></div>
                 <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                   <button className="bigbtn ghost" style={{ marginTop: 0, flex: 1 }} onClick={() => setPupilForm({ name: "", ks: "ks2", open: false })}>{tr("Cancel")}</button>
