@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 import Mochi from "./components/Mochi.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import Badges from "./components/screens/Badges.jsx";
+import Leaderboard from "./components/screens/Leaderboard.jsx";
 import { KS_LABEL, KS_META, SUBJ, SUBJECTS_BY_KS, TOPICS, PLANS, planForKs } from "./data/curriculum.js";
 import { LANGUAGES } from "./data/languages.js";
 import { BANK } from "./data/bank.js";
@@ -1092,31 +1094,7 @@ export default function App() {
 
       {/* ---------- LEADERBOARD ---------- */}
       {screen === "board" && (
-        <main>
-          <button className="iconbtn" onClick={goHome} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}><h2 className="fred">🏆 {t("Leaderboard")}</h2><p>{t("This week")}{boardScope ? ` · ${boardScope === "class" ? t("Class") : t("Family")}` : ""}</p></div>
-          {!bound?.token ? (
-            <div className="card" style={{ textAlign: "center" }}>
-              <Mochi size={84} expression="idle" />
-              <p style={{ fontWeight: 700 }}>{t("Ask a grown-up to connect this device to your family or class to join the leaderboard.")}</p>
-              <button className="bigbtn purple" onClick={openGate}>{t("Open the grown-ups area")}</button>
-            </div>
-          ) : boardBusy ? (
-            <div style={{ textAlign: "center", marginTop: 30 }}><Loader2 className="wiggle" size={26} color="#FF8A47" /></div>
-          ) : (board && board.length) ? (
-            <div className="lboard">
-              {board.map((r, i) => (
-                <div key={i} className={`lrow ${r.you ? "you" : ""}`}>
-                  <span className="lrank">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</span>
-                  <span className="lname">{r.name}{r.you ? ` (${t("You")})` : ""}</span>
-                  <span className="lstars"><Star size={15} fill="#FFC83D" color="#FFC83D" /> {r.stars}</span>
-                </div>
-              ))}
-            </div>
-          ) : <p className="note" style={{ textAlign: "center" }}>{t("No scores yet this week — be the first!")}</p>}
-          <button className="bigbtn ghost" style={{ marginTop: 14 }} onClick={inviteFriend}>{t("Invite a friend")}</button>
-          {shareMsg && <p className="note" style={{ textAlign: "center" }}>{shareMsg}</p>}
-        </main>
+        <Leaderboard bound={bound} board={board} boardBusy={boardBusy} boardScope={boardScope} openGate={openGate} goHome={goHome} onInvite={inviteFriend} shareMsg={shareMsg} />
       )}
 
       {/* ---------- ASK MOCHI (tutor chat) ---------- */}
@@ -1141,21 +1119,7 @@ export default function App() {
 
       {/* ---------- BADGES ---------- */}
       {screen === "badges" && (
-        <main>
-          <button className="iconbtn" onClick={goHome} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}><Mochi size={92} expression="happy" speaking={speaking} /><h2 className="fred" style={{ marginTop: 6 }}>🏅 {t("Your badges")}</h2><p>{tf("{e} of {t} earned", { e: earnedCount(state), t: BADGES.length })}</p></div>
-          <div className="badgegrid">
-            {badgeStatus(state).map((b) => (
-              <div key={b.id} className={`badge ${b.earned ? "earned" : ""}`}>
-                <div className="bi">{b.icon}</div>
-                <div className="bn">{b.name}</div>
-                <div className="bd">{b.desc}</div>
-              </div>
-            ))}
-          </div>
-          <button className="bigbtn ghost" style={{ marginTop: 16 }} onClick={inviteFriend}>{t("Invite a friend")}</button>
-          {shareMsg && <p className="note" style={{ textAlign: "center" }}>{shareMsg}</p>}
-        </main>
+        <Badges state={state} speaking={speaking} goHome={goHome} onInvite={inviteFriend} shareMsg={shareMsg} />
       )}
 
       {/* ---------- MOCHI SHOP ---------- */}
