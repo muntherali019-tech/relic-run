@@ -6,6 +6,15 @@ import {
 import Mochi from "./components/Mochi.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Badges from "./components/screens/Badges.jsx";
+import AskMochi from "./components/screens/AskMochi.jsx";
+import Shop from "./components/screens/Shop.jsx";
+import Solve from "./components/screens/Solve.jsx";
+import Mark from "./components/screens/Mark.jsx";
+import Plans from "./components/screens/Plans.jsx";
+import Paywall from "./components/screens/Paywall.jsx";
+import SubjectMenu from "./components/screens/SubjectMenu.jsx";
+import Dashboard from "./components/screens/Dashboard.jsx";
+import SettingsScreen from "./components/screens/SettingsScreen.jsx";
 import Leaderboard from "./components/screens/Leaderboard.jsx";
 import { KS_LABEL, KS_META, SUBJ, SUBJECTS_BY_KS, TOPICS, PLANS, planForKs } from "./data/curriculum.js";
 import { LANGUAGES } from "./data/languages.js";
@@ -47,20 +56,6 @@ const PRIVACY_URL = import.meta.env.VITE_PRIVACY_URL || "/privacy";
 const TERMS_URL = import.meta.env.VITE_TERMS_URL || "/terms";
 
 // One-time disclosure shown before the camera features send a photo to the AI.
-function ConsentCard({ onAccept }) {
-  return (
-    <div className="card" style={{ marginTop: 8 }}>
-      <div className="fred" style={{ fontWeight: 600, fontSize: 18 }}>📸 Before you take a photo</div>
-      <p className="muted" style={{ marginTop: 6 }}>
-        To give feedback, your photo is sent securely to an AI service and is <b>not stored</b> afterwards.
-        Please check with a parent or teacher before using the camera.
-      </p>
-      <button className="bigbtn purple" onClick={onAccept}>A grown-up is here — continue</button>
-      <p className="note" style={{ marginTop: 8 }}>You'll only see this once on this device.</p>
-    </div>
-  );
-}
-
 export default function App() {
   const [state, setState] = useState(loadState);
   // Persist at most every 400ms — a quiz answer updates state several times in
@@ -736,106 +731,23 @@ export default function App() {
 
       {/* ---------- PLANS ---------- */}
       {screen === "plans" && (
-        <main>
-          <button className="iconbtn" onClick={goHome} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}><Crown size={42} color="#F2A33A" /><h2 className="fred" style={{ marginTop: 6 }}>{t("Choose a plan")}</h2><p>{t("Cancel any time")}</p></div>
-          {trial.trialActive()
-            ? <div className="trialbar">{tf("✨ Free trial active — {h}h left", { h: trial.hoursLeft() })}</div>
-            : !trial.trialUsed()
-              ? <button className="bigbtn mint" onClick={() => startTrialFor(null)}>{t("Start your 72-hour free trial")}</button>
-              : <p className="note" style={{ textAlign: "center" }}>{t("Your free trial has ended — subscribe to keep learning.")}</p>}
-          {Object.entries(PLANS).map(([key, p]) => (
-            <div key={key} className="plan" style={{ background: p.color }}>
-              <h3 className="fred">{p.name}</h3>
-              <div style={{ marginTop: 6 }}><span className="price">{priceFor(key)}</span><span style={{ fontWeight: 800 }}> {t("/month")}</span></div>
-              <div style={{ fontWeight: 800, opacity: .95, marginTop: 2 }}>{p.covers}</div>
-              <ul>{p.features.map((f) => <li key={f}><Check size={18} /> {f}</li>)}</ul>
-              {state.subs[key]
-                ? <button className="planbtn active" disabled><Check size={16} style={{ verticalAlign: "-3px" }} /> Active</button>
-                : <button className="planbtn" onClick={() => requestPurchase(key)}>{tf("Subscribe — {price}/mo", { price: priceFor(key) })}</button>}
-            </div>
-          ))}
-          {buyError && <p className="err">{buyError}</p>}
-          {billing.mode() !== "stripe" && <button className="bigbtn ghost" onClick={restorePurchases}>{t("Restore purchases")}</button>}
-          <p className="note">{billingNote}</p>
-        </main>
+        <Plans state={state} startTrialFor={startTrialFor} priceFor={priceFor} requestPurchase={requestPurchase}
+          restorePurchases={restorePurchases} buyError={buyError} billingNote={billingNote} goHome={goHome} />
       )}
 
       {/* ---------- PAYWALL ---------- */}
-      {screen === "paywall" && pendingKs && (() => {
-        const plan = planForKs(pendingKs); const p = PLANS[plan];
-        return (
-          <main>
-            <button className="iconbtn" onClick={goHome} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-            <div className="greet" style={{ marginTop: 4 }}>
-              <Lock size={38} color={plan === "junior" ? "#F26B2A" : "#6b4fb0"} />
-              <h2 className="fred" style={{ marginTop: 8 }}>{tf("{ks} is locked", { ks: KS_LABEL[pendingKs] })}</h2>
-              <p>{tf("Unlock it with the {plan} plan", { plan: p.name })}</p>
-            </div>
-            {!trial.trialUsed() && <button className="bigbtn mint" onClick={() => startTrialFor(pendingKs)}>{t("Start 72-hour free trial")}</button>}
-            {trial.trialUsed() && !trial.trialActive() && <p className="note" style={{ textAlign: "center" }}>{t("Your free trial has ended.")}</p>}
-            <div className="plan" style={{ background: p.color }}>
-              <h3 className="fred">{p.name}</h3>
-              <div style={{ marginTop: 6 }}><span className="price">{priceFor(plan)}</span><span style={{ fontWeight: 800 }}> {t("/month")}</span></div>
-              <div style={{ fontWeight: 800, opacity: .95, marginTop: 2 }}>{p.covers}</div>
-              <ul>{p.features.map((f) => <li key={f}><Check size={18} /> {f}</li>)}</ul>
-              <button className="planbtn" onClick={() => requestPurchase(plan)}>{tf("Subscribe & start — {price}/mo", { price: priceFor(plan) })}</button>
-            </div>
-            <p className="trustline">{t("Cancel anytime · No ads · Made for families")}</p>
-            {buyError && <p className="err">{buyError}</p>}
-            <p className="note">{billingNote}</p>
-          </main>
-        );
-      })()}
+      {screen === "paywall" && pendingKs && (
+        <Paywall pendingKs={pendingKs} startTrialFor={startTrialFor} priceFor={priceFor} requestPurchase={requestPurchase}
+          buyError={buyError} billingNote={billingNote} goHome={goHome} />
+      )}
 
       {/* ---------- MENU ---------- */}
       {screen === "menu" && (
-        <main>
-          <button className="iconbtn" onClick={goHome} aria-label="Back to home" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}><h2 className="fred">{KS_LABEL[ks]}</h2><p>{t("Pick a subject to play")}</p></div>
-          <div className="motiv"><Sparkles size={18} className="spark" color="#F2A33A" />{motiv}</div>
-          <div className="subjgrid">
-            {SUBJECTS_BY_KS[ks].map((s) => {
-              const { name, color, Icon } = SUBJ[s];
-              return (
-                <button key={s} className={`subj${subject === s ? " on" : ""}`} style={{ background: color }} onClick={() => setSubject(s)}>
-                  <div style={{ display: "grid", placeItems: "center", marginBottom: 8 }}><Icon size={32} color="#fff" /></div>{name}
-                </button>
-              );
-            })}
-          </div>
-
-          {subject && (<>
-            <div className="sectitle">{SUBJ[subject].name} topics</div>
-            <div className="toplist">
-              {TOPICS[ks][subject].map(([name, em]) => (
-                <button key={name} className="topic" onClick={() => startRound(ks, subject, name)}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontSize: 22 }}>{em}</span>{name}</span>
-                  <span className="dot" style={{ background: SUBJ[subject].color }} />
-                </button>
-              ))}
-            </div>
-            {subject === "maths" && (
-              <button className="card toolcard" onClick={() => setScreen("calc")} aria-label="Open calculator">
-                <div className="toolicon" style={{ background: "var(--purple-soft)" }}><CalcIcon size={26} color="#6b4fb0" /></div>
-                <div><div className="fred" style={{ fontWeight: 600, fontSize: 19 }}>{t("Calculator")}</div>
-                  <div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>{t("A quick maths helper")}</div></div>
-              </button>
-            )}
-          </>)}
-
-          <div className="sectitle">{t("Helpers")}</div>
-          <button className="card toolcard" onClick={() => { setScreen("solve"); setSolveResult(null); setSv({ preview: null, data: null, mime: null }); setSolveText(""); setSolveError(null); }}>
-            <div className="toolicon" style={{ background: "var(--sky-soft)" }}><ScanLine size={28} color="#2b80d6" /></div>
-            <div><div className="fred" style={{ fontWeight: 600, fontSize: 19 }}>{t("Scan & solve a question")}</div>
-              <div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>{t("Get the answer and working in real time")}</div></div>
-          </button>
-          <button className="card toolcard" onClick={() => { setScreen("mark"); setMarkResult(null); setHw({ preview: null, data: null, mime: null }); setMarkError(null); }}>
-            <div className="toolicon" style={{ background: "var(--purple-soft)" }}><Camera size={28} color="#6b4fb0" /></div>
-            <div><div className="fred" style={{ fontWeight: 600, fontSize: 19 }}>{t("Mark my homework")}</div>
-              <div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>{t("Snap a photo and Mochi checks it")}</div></div>
-          </button>
-        </main>
+        <SubjectMenu ks={ks} subject={subject} setSubject={setSubject} motiv={motiv} startRound={startRound}
+          openCalc={() => setScreen("calc")}
+          openSolve={() => { setScreen("solve"); setSolveResult(null); setSv({ preview: null, data: null, mime: null }); setSolveText(""); setSolveError(null); }}
+          openMark={() => { setScreen("mark"); setMarkResult(null); setHw({ preview: null, data: null, mime: null }); setMarkError(null); }}
+          goHome={goHome} />
       )}
 
       {/* ---------- PLAY ---------- */}
@@ -896,95 +808,18 @@ export default function App() {
 
       {/* ---------- SCAN & SOLVE ---------- */}
       {screen === "solve" && (
-        <main>
-          <button className="iconbtn" onClick={() => setScreen("menu")} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}><Mochi size={96} expression="think" speaking={speaking} /><h2 className="fred" style={{ marginTop: 6 }}>{t("Scan & solve")}</h2><p>{KS_LABEL[ks]} · answer in real time</p></div>
-          {!photoConsent && <ConsentCard onAccept={acceptPhotoConsent} />}
-          {photoConsent && (<>
-          <input ref={svRef} type="file" accept="image/*" capture="environment" onChange={onSvFile} style={{ display: "none" }} />
-          {!sv.preview && (
-            <div className="dropzone" onClick={() => svRef.current?.click()}>
-              <ScanLine size={40} color="#2b80d6" />
-              <p className="fred" style={{ fontSize: 19, margin: "10px 0 2px" }}>{t("Scan a question")}</p>
-              <p style={{ color: "var(--muted)", fontWeight: 700, margin: 0, fontSize: 13 }}>{t("Point your camera at one question")}</p>
-            </div>
-          )}
-          {sv.preview && <img src={sv.preview} alt="Question to solve" className="photo" />}
-          {sv.preview && <button className="bigbtn ghost" onClick={() => svRef.current?.click()} style={{ marginTop: 12 }}>{t("Scan a different question")}</button>}
-          <textarea className="txtin" placeholder="…or type the question here" value={solveText} onChange={(e) => setSolveText(e.target.value)} />
-          {!solveResult && <button className="bigbtn sky" disabled={solving || (!sv.data && !solveText.trim())} onClick={doSolve}>
-            {solving ? <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><Loader2 className="wiggle" size={20} /> {t("Solving…")}</span>
-                     : <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><Sparkles size={20} /> {t("Get the answer")}</span>}
-          </button>}
-          {solveError && <div className="feedback no" style={{ marginTop: 16 }}><X size={20} /><div>{solveError}</div></div>}
-          {solveResult && (
-            <div className="card" style={{ marginTop: 16 }}>
-              {solveResult.subject && <span className="pill">{solveResult.subject}</span>}
-              {solveResult.questionRead && <div className="qquote">“{solveResult.questionRead}”</div>}
-              {solveResult.answer && <div className="ans">{solveResult.answer}</div>}
-              {Array.isArray(solveResult.steps) && solveResult.steps.length > 0 && (
-                <><div className="sectitle" style={{ marginTop: 18 }}>How to get there</div><ol className="steps">{solveResult.steps.map((s, i) => <li key={i}>{s}</li>)}</ol></>
-              )}
-              {solveResult.concept && <div className="feedback ok" style={{ marginTop: 14 }}><Lightbulb size={20} /><div>{solveResult.concept}</div></div>}
-              <button className="bigbtn ghost" onClick={() => { setSolveResult(null); setSv({ preview: null, data: null, mime: null }); setSolveText(""); }} style={{ marginTop: 14 }}>
-                <RefreshCw size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{t("Solve another")}
-              </button>
-            </div>
-          )}
-          </>)}
-          <p className="note">Try the question yourself first — then use Mochi to check the method. A grown-up should confirm important answers.</p>
-        </main>
+        <Solve ks={ks} speaking={speaking} photoConsent={photoConsent} acceptPhotoConsent={acceptPhotoConsent}
+          svRef={svRef} sv={sv} setSv={setSv} onSvFile={onSvFile} solveText={solveText} setSolveText={setSolveText}
+          solving={solving} doSolve={doSolve} solveError={solveError} solveResult={solveResult} setSolveResult={setSolveResult}
+          onBack={() => setScreen("menu")} />
       )}
 
       {/* ---------- MARK HOMEWORK ---------- */}
       {screen === "mark" && (
-        <main>
-          <button className="iconbtn" onClick={() => setScreen("menu")} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}><Mochi size={96} expression="read" speaking={speaking} /><h2 className="fred" style={{ marginTop: 6 }}>{t("Mark my homework")}</h2><p>{KS_LABEL[ks]}{subject ? ` · ${SUBJ[subject].name}` : ""}</p></div>
-          {!photoConsent && <ConsentCard onAccept={acceptPhotoConsent} />}
-          {photoConsent && (<>
-          <input ref={hwRef} type="file" accept="image/*" capture="environment" onChange={onHwFile} style={{ display: "none" }} />
-          {!hw.preview && (
-            <div className="dropzone" onClick={() => hwRef.current?.click()}>
-              <Camera size={40} color="#F26B2A" />
-              <p className="fred" style={{ fontSize: 19, margin: "10px 0 2px" }}>Take or upload a photo</p>
-              <p style={{ color: "var(--muted)", fontWeight: 700, margin: 0, fontSize: 13 }}>Lay the page flat in good light</p>
-            </div>
-          )}
-          {hw.preview && (<>
-            <img src={hw.preview} alt="Homework to mark" className="photo" />
-            <button className="bigbtn ghost" onClick={() => hwRef.current?.click()} style={{ marginTop: 12 }}>Choose a different photo</button>
-            {!markResult && <button className="bigbtn purple" disabled={marking} onClick={doMark}>
-              {marking ? <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><Loader2 className="wiggle" size={20} /> Mochi is marking…</span>
-                       : <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><Sparkles size={20} /> Mark it!</span>}
-            </button>}
-          </>)}
-          {markError && <div className="feedback no" style={{ marginTop: 16 }}><X size={20} /><div>{markError}</div></div>}
-          {markResult && (
-            <div className="card" style={{ marginTop: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <span className="pill">{markResult.subjectDetected || "Homework"}</span>
-                {markResult.score && <span className="fred" style={{ fontWeight: 700, fontSize: 22 }}>{markResult.score}</span>}
-              </div>
-              {markResult.summary && <p style={{ fontWeight: 700, marginTop: 12 }}>{markResult.summary}</p>}
-              {Array.isArray(markResult.items) && markResult.items.length > 0 && (
-                <div style={{ marginTop: 8 }}>{markResult.items.map((it, i) => (
-                  <div className="markitem" key={i}>
-                    <div className="markmark" style={{ background: it.correct ? "var(--good)" : "var(--bad)" }}>{it.correct ? <Check size={18} /> : <X size={18} />}</div>
-                    <div><div style={{ fontWeight: 800 }}>{it.label}</div>{it.comment && <div style={{ color: "var(--muted)", fontWeight: 700, fontSize: 14 }}>{it.comment}</div>}</div>
-                  </div>
-                ))}</div>
-              )}
-              {markResult.praise && <div className="feedback ok" style={{ marginTop: 14 }}><Sparkles size={20} /><div>{markResult.praise}</div></div>}
-              {markResult.nextStep && <p style={{ fontWeight: 700, marginTop: 12 }}>👉 <b>Try next:</b> {markResult.nextStep}</p>}
-              <button className="bigbtn ghost" onClick={() => { setMarkResult(null); setHw({ preview: null, data: null, mime: null }); }} style={{ marginTop: 14 }}>
-                <RefreshCw size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{t("Mark another")}
-              </button>
-            </div>
-          )}
-          </>)}
-          <p className="note">Mochi gives friendly guidance. A grown-up should always check important marks.</p>
-        </main>
+        <Mark ks={ks} subject={subject} speaking={speaking} photoConsent={photoConsent} acceptPhotoConsent={acceptPhotoConsent}
+          hwRef={hwRef} hw={hw} setHw={setHw} onHwFile={onHwFile} marking={marking} doMark={doMark}
+          markError={markError} markResult={markResult} setMarkResult={setMarkResult}
+          onBack={() => setScreen("menu")} />
       )}
 
       {/* ---------- GROWN-UPS GATE ---------- */}
@@ -1012,75 +847,8 @@ export default function App() {
 
       {/* ---------- DASHBOARD ---------- */}
       {screen === "dashboard" && (
-        <main>
-          <button className="iconbtn" onClick={goHome} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}><BarChart3 size={40} color="#6b4fb0" /><h2 className="fred" style={{ marginTop: 6 }}>Progress</h2><p>Parent &amp; teacher view</p></div>
-
-          <div className="statgrid">
-            <div className="stat"><b>{state.stars}</b><span>Stars earned</span></div>
-            <div className="stat"><b>{ov.answered}</b><span>Questions answered</span></div>
-            <div className="stat"><b>{ov.accuracy}%</b><span>Overall accuracy</span></div>
-            <div className="stat"><b>{ov.rounds}</b><span>Rounds played</span></div>
-          </div>
-
-          {ov.answered === 0 && <p className="empty">No activity yet. Play a round to see progress here.</p>}
-
-          {/* per-stage / per-subject accuracy */}
-          {KS_META.map((m) => {
-            const lines = SUBJECTS_BY_KS[m.id].map((s) => [s, state.stats[`${m.id}:${s}`]]).filter(([, v]) => v && v.answered);
-            if (lines.length === 0) return null;
-            return (
-              <div className="card stagecard" key={m.id}>
-                <div className="fred" style={{ fontWeight: 600, fontSize: 18 }}>{m.emoji} {KS_LABEL[m.id]}</div>
-                {lines.map(([s, v]) => {
-                  const acc = Math.round((v.correct / v.answered) * 100);
-                  return (
-                    <div className="subjline" key={s}>
-                      <div className="subjhead"><span>{SUBJ[s].name}</span><span>{acc}% · {v.correct}/{v.answered}</span></div>
-                      <div className="bar"><i style={{ width: `${acc}%`, background: accColor(acc) }} /></div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-
-          {weak.length > 0 && (
-            <>
-              <div className="sectitle">Needs practice</div>
-              <div className="card">
-                {weak.map((w, i) => (
-                  <div className="tinytopic" key={i} style={{ fontSize: 14, color: "var(--ink)" }}>
-                    <span>{KS_LABEL[w.ks]} · {SUBJ[w.subject].name} · {w.topic}</span>
-                    <span style={{ color: accColor(w.accuracy), fontWeight: 800 }}>{w.accuracy}%</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {state.history.length > 0 && (
-            <>
-              <div className="sectitle">Recent activity</div>
-              <div className="card">
-                {state.history.slice(0, 8).map((h, i) => (
-                  <div className="actrow" key={i}>
-                    <span>{fmtDate(h.ts)} · {SUBJ[h.subject].name} · {h.topic}</span>
-                    <span className="actscore" style={{ color: accColor(Math.round((h.correct / h.total) * 100)) }}>{h.correct}/{h.total}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {bound ? (
-            <div className="chip" style={{ margin: "0 0 12px" }}><RefreshCw size={14} /> Syncing this device to a child profile
-              <button className="linkbtn" style={{ marginLeft: 8 }} onClick={() => setBound(null)}>Stop</button></div>
-          ) : null}
-          <button className="bigbtn purple" onClick={() => setScreen("grownups")}>Parent &amp; Teacher portal →</button>
-          <button className="bigbtn ghost" onClick={resetProgress} style={{ marginTop: 18 }}>Reset progress</button>
-          <p className="note">No ads, ever. Progress saves on this device and syncs across devices when you use an account. <button className="linkbtn" onClick={openPrivacy}>Privacy policy</button></p>
-        </main>
+        <Dashboard state={state} ov={ov} weak={weak} bound={bound} setBound={setBound}
+          openPortal={() => setScreen("grownups")} resetProgress={resetProgress} openPrivacy={openPrivacy} goHome={goHome} />
       )}
 
       {/* ---------- GROWN-UPS PORTAL ---------- */}
@@ -1099,22 +867,7 @@ export default function App() {
 
       {/* ---------- ASK MOCHI (tutor chat) ---------- */}
       {screen === "ask" && (
-        <main>
-          <button className="iconbtn" onClick={goHome} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}><Mochi size={84} expression={chatBusy ? "think" : "happy"} speaking={speaking} /><h2 className="fred" style={{ marginTop: 6 }}>💬 {t("Ask Mochi")}</h2></div>
-          <div className="chatwrap">
-            {chatMsgs.map((m, i) => <div key={i} className={`bubble ${m.role}`}>{m.text}</div>)}
-            {chatBusy && <div className="bubble mochi typing">{t("Mochi is thinking…")}</div>}
-            <div ref={chatEndRef} />
-          </div>
-          <div className="chips">
-            {[t("Explain this"), t("Give me a hint"), t("Another example")].map((c) => <button key={c} className="qchip" onClick={() => sendChat(c)} disabled={chatBusy}>{c}</button>)}
-          </div>
-          <div className="chatbar">
-            <input className="chatinput" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendChat(); }} placeholder={t("Type your question…")} aria-label={t("Type your question…")} />
-            <button className="sendbtn" onClick={() => sendChat()} disabled={chatBusy || !chatInput.trim()} aria-label={t("Send")}>{chatBusy ? <Loader2 className="wiggle" size={18} /> : <ArrowRight size={20} />}</button>
-          </div>
-        </main>
+        <AskMochi chatMsgs={chatMsgs} chatBusy={chatBusy} chatInput={chatInput} setChatInput={setChatInput} chatEndRef={chatEndRef} sendChat={sendChat} speaking={speaking} goHome={goHome} />
       )}
 
       {/* ---------- BADGES ---------- */}
@@ -1124,71 +877,7 @@ export default function App() {
 
       {/* ---------- MOCHI SHOP ---------- */}
       {screen === "shop" && (
-        <main>
-          <button className="iconbtn" onClick={goHome} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}>
-            <Mochi size={120} expression="happy" />
-            <h2 className="fred" style={{ marginTop: 6 }}>🎩 {t("Mochi's shop")}</h2>
-            <p>{t("Dress up Mochi with stars you've earned")}</p>
-            <div className="starcount" style={{ margin: "6px auto 0" }}><Star size={18} fill="#FFC83D" color="#FFC83D" />{state.stars}</div>
-          </div>
-
-          <h3 className="fred shoph">{t("Colours")}</h3>
-          <div className="shopgrid">
-            {SHOP.colors.map((it) => {
-              const owned = owns(it.id); const on = (state.mochi?.color || "ginger") === it.id;
-              return (
-                <div key={it.id} className={`shopitem ${on ? "on" : ""}`}>
-                  <div className="swatch" style={{ background: COLOR_THEMES[it.id].base }} />
-                  <div className="sn">{it.name}</div>
-                  {!owned ? <button className="shopbtn" disabled={state.stars < it.cost} onClick={() => buyItem(it.id)}>{tf("Buy ⭐{cost}", { cost: it.cost })}</button>
-                    : <button className="shopbtn alt" onClick={() => equipItem("color", it.id)} disabled={on}>{on ? t("Wearing ✓") : t("Wear")}</button>}
-                </div>
-              );
-            })}
-          </div>
-
-          <h3 className="fred shoph">{t("Hats")}</h3>
-          <div className="shopgrid">
-            {SHOP.hats.map((it) => {
-              const owned = owns(it.id); const on = (state.mochi?.hat || "none") === it.id;
-              return (
-                <div key={it.id} className={`shopitem ${on ? "on" : ""}`}>
-                  <div className="hatprev"><Mochi size={64} expression="idle" hat={it.id} glasses={false} color={state.mochi?.color} /></div>
-                  <div className="sn">{it.name}</div>
-                  {!owned ? <button className="shopbtn" disabled={state.stars < it.cost} onClick={() => buyItem(it.id)}>{tf("Buy ⭐{cost}", { cost: it.cost })}</button>
-                    : <button className="shopbtn alt" onClick={() => equipItem("hat", it.id)} disabled={on}>{on ? t("Wearing ✓") : t("Wear")}</button>}
-                </div>
-              );
-            })}
-          </div>
-
-          <h3 className="fred shoph">{t("Extras")}</h3>
-          <div className="shopgrid">
-            {SHOP.extras.map((it) => {
-              if (it.id === "streakfreeze") {
-                return (
-                  <div key={it.id} className="shopitem">
-                    <div className="hatprev" style={{ fontSize: 34 }}>🧊</div>
-                    <div className="sn">{it.name}</div>
-                    <div className="muted" style={{ fontSize: 10.5, lineHeight: 1.25 }}>{t("Saves your streak if you miss a day")}</div>
-                    <div className="muted" style={{ fontSize: 11, fontWeight: 800 }}>{tf("You have {n}", { n: state.freezes || 0 })}</div>
-                    <button className="shopbtn" disabled={state.stars < it.cost} onClick={() => buyFreeze(it.cost)}>{tf("Buy ⭐{cost}", { cost: it.cost })}</button>
-                  </div>
-                );
-              }
-              const owned = owns(it.id); const on = !!state.mochi?.glasses;
-              return (
-                <div key={it.id} className="shopitem">
-                  <div className="hatprev"><Mochi size={64} expression="idle" glasses hat="none" color={state.mochi?.color} /></div>
-                  <div className="sn">{it.name}</div>
-                  {!owned ? <button className="shopbtn" disabled={state.stars < it.cost} onClick={() => buyItem(it.id)}>{tf("Buy ⭐{cost}", { cost: it.cost })}</button>
-                    : <button className="shopbtn alt" onClick={toggleGlasses}>{on ? t("Glasses off") : t("Glasses on")}</button>}
-                </div>
-              );
-            })}
-          </div>
-        </main>
+        <Shop state={state} owns={owns} buyItem={buyItem} equipItem={equipItem} buyFreeze={buyFreeze} toggleGlasses={toggleGlasses} goHome={goHome} />
       )}
 
       {/* ---------- LANGUAGES ---------- */}
@@ -1202,54 +891,12 @@ export default function App() {
 
       {/* ---------- SETTINGS ---------- */}
       {screen === "settings" && (
-        <main>
-          <button className="iconbtn" onClick={goHome} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="greet" style={{ marginTop: 4 }}><Settings size={36} color="#6b4fb0" /><h2 className="fred" style={{ marginTop: 6 }}>{t("Settings")}</h2><p>{t("Voice & accessibility")}</p></div>
-          <div className="card">
-            <div className="setrow">
-              <div><div style={{ fontWeight: 800 }}>{t("Mochi's voice")}</div><div className="muted">{t("Mochi speaks and cheers you on.")}</div></div>
-              <button className={`switch ${voiceOn ? "on" : ""}`} role="switch" aria-checked={voiceOn} aria-label="Mochi's voice" onClick={toggleVoice}><span /></button>
-            </div>
-            <div className="setrow">
-              <div><div style={{ fontWeight: 800 }}>{t("Read questions aloud")}</div><div className="muted">{t("Reads each question and its options — great for early or blind readers. Needs Mochi's voice on.")}</div></div>
-              <button className={`switch ${narrateOn ? "on" : ""}`} role="switch" aria-checked={narrateOn} aria-label="Read questions aloud" onClick={toggleNarrate}><span /></button>
-            </div>
-            <div className="setrow">
-              <div><div style={{ fontWeight: 800 }}>{t("Mochi guides me")}</div><div className="muted">{t("Mochi welcomes you and gives spoken tips around the app. On by default.")}</div></div>
-              <button className={`switch ${guideOn ? "on" : ""}`} role="switch" aria-checked={guideOn} aria-label="Mochi guides me" onClick={toggleGuide}><span /></button>
-            </div>
-            <div className="setrow">
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800 }}><Bell size={15} style={{ verticalAlign: "-2px" }} /> {t("Daily reminder")}</div>
-                <div className="muted">{t("A gentle nudge to keep your streak going")}</div>
-                {reminder.on && (
-                  <label style={{ display: "block", marginTop: 6, fontWeight: 700, fontSize: 13 }}>{t("Remind me at")}{" "}
-                    <select value={`${reminder.hour}:${reminder.minute}`} onChange={changeReminderTime} style={{ fontFamily: "inherit", fontWeight: 700, padding: "4px 8px", borderRadius: 8, border: "2px solid #eadfce" }}>
-                      <option value="15:0">3:00 pm</option><option value="15:30">3:30 pm</option><option value="16:0">4:00 pm</option>
-                      <option value="17:0">5:00 pm</option><option value="18:0">6:00 pm</option><option value="19:0">7:00 pm</option><option value="19:30">7:30 pm</option>
-                    </select>
-                  </label>
-                )}
-                {reminderMsg && <div className="muted" style={{ marginTop: 6, color: "var(--ginger-deep)" }}>{reminderMsg}</div>}
-              </div>
-              <button className={`switch ${reminder.on ? "on" : ""}`} role="switch" aria-checked={reminder.on} aria-label="Daily reminder" onClick={toggleReminder}><span /></button>
-            </div>
-            <div className="setrow">
-              <div><div style={{ fontWeight: 800 }}><Globe size={15} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("Mochi's language")}</div><div className="muted">{t("The language Mochi speaks. Starts in English; you can also say “speak in French”.")}</div></div>
-              <select className="langsel" value={voiceLang} onChange={(e) => setVoiceLang(e.target.value)} aria-label="Mochi's language">
-                {LANGUAGES.map((l) => <option key={l.id} value={l.code}>{l.emoji} {l.name}</option>)}
-              </select>
-            </div>
-          </div>
-          {!speech.supported() && <p className="note">Your device doesn't expose a speech voice here — try the latest Chrome, or the Android app with a text-to-speech engine installed.</p>}
-          {speech.mode() === "cloud" && <p className="note">✨ Premium voice is enabled.</p>}
-          <button className="bigbtn ghost" onClick={() => localizedSpeak("Hi! This is how I sound. You can do it!", { respectSetting: false })}><Volume2 size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{t("Hear a sample")}</button>
-          <button className="bigbtn ghost" onClick={() => review.requestReview()}><Star size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{t("Rate Education Academy")}</button>
-          <button className="bigbtn ghost" onClick={manageSub}>{t("Manage subscription")}</button>
-          {manageMsg && <p className="note" style={{ textAlign: "center" }}>{manageMsg}</p>}
-          {!String(voiceLang).startsWith("en") && <p className="note"><button className="linkbtn" onClick={resetTranslations}>{t("Reset translations")}</button></p>}
-          <p className="note"><button className="linkbtn" onClick={openPrivacy}>{t("Privacy policy")}</button></p>
-        </main>
+        <SettingsScreen
+          voiceOn={voiceOn} toggleVoice={toggleVoice} narrateOn={narrateOn} toggleNarrate={toggleNarrate}
+          guideOn={guideOn} toggleGuide={toggleGuide} reminder={reminder} toggleReminder={toggleReminder}
+          changeReminderTime={changeReminderTime} reminderMsg={reminderMsg} voiceLang={voiceLang} setVoiceLang={setVoiceLang}
+          localizedSpeak={localizedSpeak} manageSub={manageSub} manageMsg={manageMsg} openPrivacy={openPrivacy} goHome={goHome}
+        />
       )}
     </div>
   );
