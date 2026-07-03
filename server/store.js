@@ -35,7 +35,16 @@ export async function initStore() {
       pool = new Pool({ connectionString: url, ssl });
       await pool.query("CREATE TABLE IF NOT EXISTS app_state (id int PRIMARY KEY, data jsonb NOT NULL)");
       const r = await pool.query("SELECT data FROM app_state WHERE id = 1");
-      cache = r.rows[0]?.data ? { ...EMPTY, ...r.rows[0].data } : { ...EMPTY };
+      if (r.rows[0]?.data) {
+        cache = { ...EMPTY, ...r.rows[0].data };
+      } else {
+        // First boot against an empty database: import any existing file-store
+        // data so accounts created before the DATABASE_URL switch carry over.
+        cache = fs.existsSync(FILE) ? readFile() : { ...EMPTY };
+        const imported = Object.keys(cache.users).length;
+        await pool.query("INSERT INTO app_state (id, data) VALUES (1, $1::jsonb) ON CONFLICT (id) DO NOTHING", [JSON.stringify(cache)]);
+        if (imported) console.log(`  Store: imported ${imported} account(s) from the JSON file into Postgres`);
+      }
       backend = "pg";
       console.log("  Store: Postgres (durable across restarts)");
       return;
