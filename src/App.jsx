@@ -4,6 +4,7 @@ import {
   Lock, Crown, ScanLine, Lightbulb, BarChart3, Volume2, VolumeX, Settings, Languages as LangIcon, GraduationCap, Mic, Calculator as CalcIcon, Globe,
 } from "lucide-react";
 import Mochi from "./components/Mochi.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { KS_LABEL, KS_META, SUBJ, SUBJECTS_BY_KS, TOPICS, PLANS, planForKs } from "./data/curriculum.js";
 import { LANGUAGES } from "./data/languages.js";
 import { BANK } from "./data/bank.js";
@@ -199,14 +200,14 @@ export default function App() {
     if (!hw.data) return;
     setMarking(true); setMarkError(null); setMarkResult(null);
     try { const r = await markHomework({ ks, subject, image: { data: hw.data, mime: hw.mime }, language: langName() }); setMarkResult(r); speech.speak(r?.summary || "All done!"); }
-    catch { setMarkError("Mochi couldn't read that. Marking needs internet — try a clear, well-lit photo."); }
+    catch (e) { setMarkError(e?.name === "ApiError" ? e.message : "Mochi couldn't read that. Marking needs internet — try a clear, well-lit photo."); }
     finally { setMarking(false); }
   }
   async function doSolve() {
     if (!sv.data && !solveText.trim()) return;
     setSolving(true); setSolveError(null); setSolveResult(null);
     try { const r = await solveQuestion({ ks, image: sv.data ? { data: sv.data, mime: sv.mime } : null, text: solveText, language: langName() }); setSolveResult(r); speech.speak(`${r?.answer ? r.answer + ". " : ""}${r?.concept || ""}`); }
-    catch { setSolveError("Mochi couldn't solve that. Solving needs internet — try a clearer photo or type the question."); }
+    catch (e) { setSolveError(e?.name === "ApiError" ? e.message : "Mochi couldn't solve that. Solving needs internet — try a clearer photo or type the question."); }
     finally { setSolving(false); }
   }
 
@@ -1059,9 +1060,11 @@ export default function App() {
 
       {/* ---------- GROWN-UPS PORTAL ---------- */}
       {screen === "grownups" && (
-        <Suspense fallback={<ScreenLoading />}>
-          <GrownUps onClose={() => setScreen("dashboard")} onBind={(childId, token) => setBound({ childId, token })} onPrivacy={openPrivacy} />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<ScreenLoading />}>
+            <GrownUps onClose={() => setScreen("dashboard")} onBind={(childId, token) => setBound({ childId, token })} onPrivacy={openPrivacy} />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* ---------- LEADERBOARD ---------- */}
@@ -1202,13 +1205,13 @@ export default function App() {
       )}
 
       {/* ---------- LANGUAGES ---------- */}
-      {screen === "languages" && <Suspense fallback={<ScreenLoading />}><Languages onClose={goHome} /></Suspense>}
+      {screen === "languages" && <ErrorBoundary><Suspense fallback={<ScreenLoading />}><Languages onClose={goHome} /></Suspense></ErrorBoundary>}
 
       {/* ---------- ADVANCED COURSES ---------- */}
-      {screen === "courses" && <Suspense fallback={<ScreenLoading />}><Courses onClose={goHome} onResult={(r) => setState((s) => recordCourseResult(s, r))} /></Suspense>}
+      {screen === "courses" && <ErrorBoundary><Suspense fallback={<ScreenLoading />}><Courses onClose={goHome} onResult={(r) => setState((s) => recordCourseResult(s, r))} /></Suspense></ErrorBoundary>}
 
       {/* ---------- CALCULATOR ---------- */}
-      {screen === "calc" && <Suspense fallback={<ScreenLoading />}><Calc onClose={goHome} /></Suspense>}
+      {screen === "calc" && <ErrorBoundary><Suspense fallback={<ScreenLoading />}><Calc onClose={goHome} /></Suspense></ErrorBoundary>}
 
       {/* ---------- SETTINGS ---------- */}
       {screen === "settings" && (

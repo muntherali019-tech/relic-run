@@ -11,15 +11,47 @@ export function extractJSON(text) {
   return JSON.parse(t);
 }
 
+// Typed API error so the UI can tell offline / timeout / rate-limited / server
+// failures apart. `message` is always safe to show to a learner.
+export class ApiError extends Error {
+  constructor(message, { kind = "server", status = 0, retryAfter = 0 } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.kind = kind;       // "offline" | "timeout" | "network" | "rate-limited" | "server"
+    this.status = status;
+    this.retryAfter = retryAfter; // seconds, for kind === "rate-limited"
+  }
+}
+
+const TIMEOUT_MS = 90000; // image marking can legitimately take a while
+
 async function call({ system, content, max_tokens = 1500 }) {
-  const res = await fetch(`${BASE}/claude`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, content, max_tokens }),
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new ApiError("You're offline — Mochi needs the internet for this.", { kind: "offline" });
+  }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`${BASE}/claude`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ system, content, max_tokens }),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    if (e?.name === "AbortError") throw new ApiError("That took too long — please try again.", { kind: "timeout" });
+    throw new ApiError("Couldn't reach Mochi — check your connection and try again.", { kind: "network" });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.status === 429) {
+    const retryAfter = Math.max(1, Number(res.headers.get("retry-after")) || 30);
+    throw new ApiError(`Mochi needs a little rest — try again in ${retryAfter} seconds.`, { kind: "rate-limited", status: 429, retryAfter });
+  }
+  if (!res.ok) throw new ApiError("Mochi had a hiccup — please try again in a moment.", { status: res.status });
   const data = await res.json();
-  if (data.error) throw new Error(data.error);
+  if (data.error) throw new ApiError(String(data.error.message || data.error), { status: res.status });
   return (data.content || []).map((b) => (b.type === "text" ? b.text : "")).join("\n");
 }
 
