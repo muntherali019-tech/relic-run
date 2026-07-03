@@ -61,7 +61,22 @@ function ConsentCard({ onAccept }) {
 
 export default function App() {
   const [state, setState] = useState(loadState);
-  useEffect(() => saveState(state), [state]);
+  // Persist at most every 400ms — a quiz answer updates state several times in
+  // a burst, and serializing the whole state per update janks low-end phones.
+  const saveTimerRef = useRef(null);
+  const latestStateRef = useRef(state);
+  useEffect(() => {
+    latestStateRef.current = state;
+    saveTimerRef.current = setTimeout(() => saveState(state), 400);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [state]);
+  useEffect(() => {
+    const flush = () => saveState(latestStateRef.current);
+    const onHide = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHide);
+    return () => { window.removeEventListener("pagehide", flush); document.removeEventListener("visibilitychange", onHide); };
+  }, []);
 
   // Cross-device sync: when bound to a child profile (from the portal), the
   // device pulls that child's progress on load and pushes changes (debounced).
@@ -493,8 +508,8 @@ export default function App() {
   const themeKs = onStageScreen && ks ? ks : "home";
   const motiv = useMemo(() => pickMessage(themeKs), [themeKs]);
 
-  const ov = overview(state);
-  const weak = weakestTopics(state);
+  const ov = useMemo(() => overview(state), [state.stats]);
+  const weak = useMemo(() => weakestTopics(state), [state.stats]);
 
   /* ---------- AI voice commands ---------- */
   const [vListening, setVListening] = useState(false);
