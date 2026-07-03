@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import {
   Camera, Star, ArrowLeft, ArrowRight, Check, X, RefreshCw, Sparkles, Loader2, Bell,
   Lock, Crown, ScanLine, Lightbulb, BarChart3, Volume2, VolumeX, Settings, Languages as LangIcon, GraduationCap, Mic, Calculator as CalcIcon, Globe,
@@ -15,7 +15,7 @@ import { share as shareThing, siteUrl } from "./lib/share.js";
 import { isWeb } from "./lib/platform.js";
 import { SHOP, FREE, COLOR_THEMES, setEquipped, itemCost } from "./lib/mochiShop.js";
 import * as reminders from "./lib/reminders.js";
-import GrownUps from "./components/GrownUps.jsx";
+const GrownUps = lazy(() => import("./components/GrownUps.jsx"));
 import { pickMessage } from "./lib/motivation.js";
 import * as cloud from "./lib/cloud.js";
 import * as billing from "./lib/billing.js";
@@ -25,9 +25,14 @@ import * as recog from "./lib/recognition.js";
 import * as review from "./lib/review.js";
 import * as trial from "./lib/trial.js";
 import { cheer } from "./lib/coach.js";
-import Languages from "./components/Languages.jsx";
-import Courses from "./components/Courses.jsx";
-import Calc from "./components/Calculator.jsx";
+const Languages = lazy(() => import("./components/Languages.jsx"));
+const Courses = lazy(() => import("./components/Courses.jsx"));
+const Calc = lazy(() => import("./components/Calculator.jsx"));
+
+// Shown while a lazy-loaded screen's chunk downloads (usually a blink; visible on slow networks).
+const ScreenLoading = () => (
+  <main style={{ textAlign: "center", marginTop: 60 }}><Loader2 className="wiggle" size={28} color="#FF8A47" aria-label="Loading" /></main>
+);
 
 const ROUND_SIZE = 15;
 const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
@@ -1054,7 +1059,9 @@ export default function App() {
 
       {/* ---------- GROWN-UPS PORTAL ---------- */}
       {screen === "grownups" && (
-        <GrownUps onClose={() => setScreen("dashboard")} onBind={(childId, token) => setBound({ childId, token })} onPrivacy={openPrivacy} />
+        <Suspense fallback={<ScreenLoading />}>
+          <GrownUps onClose={() => setScreen("dashboard")} onBind={(childId, token) => setBound({ childId, token })} onPrivacy={openPrivacy} />
+        </Suspense>
       )}
 
       {/* ---------- LEADERBOARD ---------- */}
@@ -1195,13 +1202,13 @@ export default function App() {
       )}
 
       {/* ---------- LANGUAGES ---------- */}
-      {screen === "languages" && <Languages onClose={goHome} />}
+      {screen === "languages" && <Suspense fallback={<ScreenLoading />}><Languages onClose={goHome} /></Suspense>}
 
       {/* ---------- ADVANCED COURSES ---------- */}
-      {screen === "courses" && <Courses onClose={goHome} onResult={(r) => setState((s) => recordCourseResult(s, r))} />}
+      {screen === "courses" && <Suspense fallback={<ScreenLoading />}><Courses onClose={goHome} onResult={(r) => setState((s) => recordCourseResult(s, r))} /></Suspense>}
 
       {/* ---------- CALCULATOR ---------- */}
-      {screen === "calc" && <Calc onClose={goHome} />}
+      {screen === "calc" && <Suspense fallback={<ScreenLoading />}><Calc onClose={goHome} /></Suspense>}
 
       {/* ---------- SETTINGS ---------- */}
       {screen === "settings" && (
