@@ -23,6 +23,9 @@ jobs:
       - name: Audit dependencies (fail on high/critical)
         run: npm audit --audit-level=high
 
+      - name: Run tests
+        run: npm test
+
       - name: Syntax-check server
         run: |
           for f in server/*.js; do

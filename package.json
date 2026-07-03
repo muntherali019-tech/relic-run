@@ -14,6 +14,7 @@
     "build:app": "vite build --mode app",
     "build:onefile": "vite build --mode onefile",
     "preview": "vite preview --outDir dist-web",
+    "test": "node --test",
     "cap:add": "cap add android",
     "cap:sync": "npm run build:app && cap sync",
     "cap:open": "cap open android"
