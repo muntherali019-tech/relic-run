@@ -4,6 +4,8 @@ import crypto from "crypto";
 // For production, set AUTH_SECRET to a long random value, add rate limiting,
 // email verification, and consider a managed auth provider.
 const SECRET = process.env.AUTH_SECRET || "dev-insecure-secret-change-me";
+if (!process.env.AUTH_SECRET && process.env.NODE_ENV === "production")
+  console.warn("⚠  AUTH_SECRET is not set — session tokens are signed with the insecure dev secret. Set AUTH_SECRET before going live.");
 
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
