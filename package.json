@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Education Academy — a cat-themed learning game for UK KS1–KS3 and Higher Education, with AI homework marking and a scan-and-solve helper.",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite --mode web",
     "dev:app": "vite --mode app",

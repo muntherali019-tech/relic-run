@@ -33,7 +33,7 @@ Also on board: **🏛️ Relic Run** (`public/relicrun/`, served at `/relicrun/`
 
 ## 1. Prerequisites
 
-- **Node.js 18 or newer** (`node -v` to check)
+- **Node.js 20.19+ or 22.12+** (`node -v` to check — required by Vite 8; Node 22 LTS recommended)
 - An **Anthropic API key** — create one at <https://console.anthropic.com>
 
 ## 2. Install
