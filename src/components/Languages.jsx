@@ -162,8 +162,8 @@ function Quiz({ lesson, lang, speaking, onBack }) {
     setPicked(i);
     const right = i === Number(q.answerIndex);
     if (right) setCorrect((c) => c + 1);
-    setAnnounce(right ? "Correct!" : `Not quite. The answer is ${q.options[Number(q.answerIndex)]}.`);
-    speech.speak(right ? "Correct! Well done!" : "Not quite — let's keep going.");
+    setAnnounce(right ? t("Correct!") : tf("Not quite. The answer is {a}.", { a: q.options[Number(q.answerIndex)] }));
+    speech.speak(right ? t("Correct! Well done!") : t("Not quite — let's keep going."));
   }
   function next() {
     if (qi + 1 < lesson.quiz.length) { setQi(qi + 1); setPicked(null); setAnnounce(""); }
@@ -223,8 +223,8 @@ function Listening({ lesson, lang, speaking, hear, onBack }) {
     setPicked(i);
     const right = i === it.answerIndex;
     if (right) setCorrect((c) => c + 1);
-    setAnnounce(right ? "Correct!" : `Not quite. That was ${it.options[it.answerIndex]}.`);
-    speech.speak(right ? "Correct! Great listening!" : "Good try!");
+    setAnnounce(right ? t("Correct!") : tf("Not quite. That was {a}.", { a: it.options[it.answerIndex] }));
+    speech.speak(right ? t("Correct! Great listening!") : t("Good try!"));
   }
   function next() {
     if (qi + 1 < items.length) { setQi(qi + 1); setPicked(null); setAnnounce(""); }
@@ -292,7 +292,7 @@ function Speaking({ lesson, lang, speaking, hear, onBack }) {
         setHeard(got);
         const ok = alts.some((a) => recog.roughMatch(a, p.target));
         setState(ok ? "good" : "again");
-        speech.speak(ok ? "Great pronunciation!" : "Good effort! Have another go.", { respectSetting: false });
+        speech.speak(ok ? t("Great pronunciation!") : t("Good effort! Have another go."), { respectSetting: false });
       },
       onError: () => setState("again"),
       onEnd: () => setState((s) => (s === "listening" ? "" : s)),
@@ -309,7 +309,7 @@ function Speaking({ lesson, lang, speaking, hear, onBack }) {
   }
   function advance() {
     if (i + 1 < phrases.length) { setI(i + 1); setState(""); setHeard(""); }
-    else { setI(phrases.length); speech.speak("Brilliant speaking practice! You're doing wonderfully."); }
+    else { setI(phrases.length); speech.speak(t("Brilliant speaking practice! You're doing wonderfully.")); }
   }
 
   if (i >= phrases.length) {

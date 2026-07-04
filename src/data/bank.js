@@ -18,6 +18,7 @@ export const BANK = {
     { question: "How many sides does a triangle have? 🔺", choices: ["2","3","4","5"], answerIndex: 1, explanation: "A triangle always has 3 sides." },
     { question: "How many sides does a square have?", choices: ["3","4","5","6"], answerIndex: 1, explanation: "A square has 4 equal sides." },
     { question: "How many 5p coins make 10p? 🪙", choices: ["1","2","3","5"], answerIndex: 1, explanation: "5p and 5p makes 10p, so 2 coins." },
+    { question: "What is 10 + 10?", choices: ["10","15","20","25"], answerIndex: 2, explanation: "Ten and ten more makes twenty." },
   ],
   ks1_english: [
     { question: "Which word rhymes with 'cat'? 🐱", choices: ["dog","hat","sun","cup"], answerIndex: 1, explanation: "'cat' and 'hat' share the -at sound." },
@@ -25,7 +26,7 @@ export const BANK = {
     { question: "Which word starts with the 'sh' sound?", choices: ["ship","top","cat","run"], answerIndex: 0, explanation: "'ship' begins with sh." },
     { question: "Which word starts with the 'ch' sound?", choices: ["chip","sun","man","box"], answerIndex: 0, explanation: "'chip' begins with ch." },
     { question: "Which is a naming word (noun)?", choices: ["jump","table","quickly","blue"], answerIndex: 1, explanation: "'table' names a thing." },
-    { question: "Which is a naming word (noun)?", choices: ["run","dog","happy","fast"], answerIndex: 1, explanation: "'dog' names an animal." },
+    { question: "Which word names an animal?", choices: ["run","dog","happy","fast"], answerIndex: 1, explanation: "'dog' names an animal — it is a noun." },
     { question: "Spell the word for one more than two.", choices: ["thre","three","threee","tree"], answerIndex: 1, explanation: "It is t-h-r-e-e." },
     { question: "Spell the tricky word.", choices: ["sed","said","sayd","saed"], answerIndex: 1, explanation: "It is s-a-i-d." },
     { question: "Which word has the long 'ee' sound?", choices: ["bed","feet","cap","dog"], answerIndex: 1, explanation: "'feet' has the long ee sound." },
@@ -34,6 +35,7 @@ export const BANK = {
     { question: "What is the plural of 'cat'?", choices: ["cat","cats","cates","catz"], answerIndex: 1, explanation: "Add s: cats." },
     { question: "What is the opposite of 'big'?", choices: ["tall","small","wide","fast"], answerIndex: 1, explanation: "The opposite of big is small." },
     { question: "Which one is a question?", choices: ["I like cats.","What is your name?","The dog ran.","Go away."], answerIndex: 1, explanation: "A question asks something and ends with ?" },
+    { question: "Which is the first letter of the alphabet?", choices: ["b","c","a","d"], answerIndex: 2, explanation: "The alphabet starts with a." },
   ],
   ks2_maths: [
     { question: "What is 7 × 8?", choices: ["54","56","48","64"], answerIndex: 1, explanation: "7 × 8 = 56." },
@@ -50,12 +52,13 @@ export const BANK = {
     { question: "Perimeter of a square with side 5cm?", choices: ["10cm","15cm","20cm","25cm"], answerIndex: 2, explanation: "4 sides × 5 = 20cm." },
     { question: "4 pencils cost 35p each. Total?", choices: ["£1.20","£1.40","£1.45","£1.05"], answerIndex: 1, explanation: "35 × 4 = 140p = £1.40." },
     { question: "Round 48 to the nearest 10.", choices: ["40","45","50","48"], answerIndex: 2, explanation: "48 is closer to 50 than 40." },
+    { question: "What is 144 ÷ 12?", choices: ["10","11","12","14"], answerIndex: 2, explanation: "12 × 12 = 144, so 144 ÷ 12 = 12." },
   ],
   ks2_english: [
     { question: "Which word is an adjective?", choices: ["run","happy","slowly","ball"], answerIndex: 1, explanation: "'happy' describes a noun." },
-    { question: "Which word is an adjective?", choices: ["bright","jump","quickly","table"], answerIndex: 0, explanation: "'bright' describes a noun." },
+    { question: "Which word could describe a light?", choices: ["bright","jump","quickly","table"], answerIndex: 0, explanation: "'bright' is an adjective that describes a light." },
     { question: "Which word is a verb?", choices: ["table","jump","green","loud"], answerIndex: 1, explanation: "'jump' is an action." },
-    { question: "Which word is a verb?", choices: ["chair","swim","blue","soft"], answerIndex: 1, explanation: "'swim' is an action." },
+    { question: "Which word is something you can do?", choices: ["chair","swim","blue","soft"], answerIndex: 1, explanation: "'swim' is an action, so it is a verb." },
     { question: "Which word is an adverb?", choices: ["quick","quickly","quickness","quicker"], answerIndex: 1, explanation: "'quickly' tells you how, so it is an adverb." },
     { question: "A synonym for 'big' is…", choices: ["tiny","enormous","quiet","fast"], answerIndex: 1, explanation: "'enormous' means very big." },
     { question: "A synonym for 'happy' is…", choices: ["sad","joyful","angry","tired"], answerIndex: 1, explanation: "'joyful' means happy." },
@@ -66,6 +69,7 @@ export const BANK = {
     { question: "Which is a homophone of 'their'?", choices: ["they","there","that","then"], answerIndex: 1, explanation: "'there' sounds the same as 'their'." },
     { question: "Past tense of 'run' is…", choices: ["runned","ran","running","runs"], answerIndex: 1, explanation: "The past tense of run is ran." },
     { question: "Which word needs a capital letter?", choices: ["table","london","happy","quickly"], answerIndex: 1, explanation: "London is a place name, so it needs a capital." },
+    { question: "Which word is a conjunction?", choices: ["because","apple","quickly","green"], answerIndex: 0, explanation: "'because' joins two parts of a sentence." },
   ],
   ks3_maths: [
     { question: "Simplify 3x + 5x.", choices: ["8","8x","15x","2x"], answerIndex: 1, explanation: "Add like terms: 3x + 5x = 8x." },
@@ -82,6 +86,7 @@ export const BANK = {
     { question: "Next term: 2, 4, 8, 16, ?", choices: ["24","30","32","64"], answerIndex: 2, explanation: "Each term doubles: 16 × 2 = 32." },
     { question: "Simplify the ratio 10 : 15.", choices: ["1:2","2:3","3:2","5:10"], answerIndex: 1, explanation: "Divide both by 5: 2:3." },
     { question: "Area of a 4 × 6 rectangle?", choices: ["10","20","24","46"], answerIndex: 2, explanation: "Area = length × width = 24." },
+    { question: "Expand 3(x + 2).", choices: ["3x + 2","3x + 6","x + 6","3x + 5"], answerIndex: 1, explanation: "Multiply both terms by 3: 3x + 6." },
   ],
   ks3_english: [
     { question: "Which is a metaphor?", choices: ["as cold as ice","the classroom was a zoo","runs like the wind","quiet as a mouse"], answerIndex: 1, explanation: "It says one thing IS another, with no 'like' or 'as'." },
@@ -98,6 +103,7 @@ export const BANK = {
     { question: "Past tense of 'write' is…", choices: ["writed","wrote","written","writing"], answerIndex: 1, explanation: "The simple past of write is wrote." },
     { question: "A synonym for 'angry' is…", choices: ["calm","furious","happy","tired"], answerIndex: 1, explanation: "'furious' means very angry." },
     { question: "A rhetorical question is…", choices: ["asked for a long answer","asked for effect, not an answer","only used in maths","a spelling rule"], answerIndex: 1, explanation: "It makes the reader think; no answer is expected." },
+    { question: "Onomatopoeia is when a word…", choices: ["rhymes with another","sounds like its meaning","is spelled backwards","starts a sentence"], answerIndex: 1, explanation: "Words like 'buzz' and 'crash' sound like what they mean." },
   ],
   ks3_science: [
     { question: "The unit of force is the…", choices: ["joule","watt","newton","volt"], answerIndex: 2, explanation: "Force is measured in newtons (N)." },
@@ -114,6 +120,7 @@ export const BANK = {
     { question: "Solid turning to liquid is called…", choices: ["melting","freezing","boiling","condensing"], answerIndex: 0, explanation: "Solid to liquid is melting." },
     { question: "Liquid turning to gas is called…", choices: ["melting","freezing","boiling","condensing"], answerIndex: 2, explanation: "Liquid to gas is boiling (or evaporating)." },
     { question: "Electric current is measured in…", choices: ["volts","amperes","ohms","newtons"], answerIndex: 1, explanation: "Current is measured in amperes (amps)." },
+    { question: "The force pulling objects towards Earth is…", choices: ["friction","magnetism","gravity","upthrust"], answerIndex: 2, explanation: "Gravity pulls objects towards Earth's centre." },
   ],
   he_maths: [
     { question: "The derivative of x³ is…", choices: ["3x²","x²","3x","2x³"], answerIndex: 0, explanation: "Power rule: 3·x^(3−1) = 3x²." },
@@ -128,6 +135,9 @@ export const BANK = {
     { question: "log₁₀(100) =", choices: ["1","2","10","100"], answerIndex: 1, explanation: "10² = 100, so the log is 2." },
     { question: "The diagonal entries of a 2×2 identity matrix are…", choices: ["0","1","2","−1"], answerIndex: 1, explanation: "An identity matrix has 1s on its diagonal." },
     { question: "Solve x² = 9.", choices: ["x = 3 only","x = ±3","x = 9","x = ±9"], answerIndex: 1, explanation: "Both 3 and −3 square to 9." },
+    { question: "The gradient of the line y = 3x + 2 is…", choices: ["2","3","5","x"], answerIndex: 1, explanation: "In y = mx + c the gradient is m, here 3." },
+    { question: "sin²θ + cos²θ =", choices: ["0","1","2","tan θ"], answerIndex: 1, explanation: "The Pythagorean identity: it always equals 1." },
+    { question: "The determinant of the matrix [[2,0],[0,3]] is…", choices: ["5","6","0","1"], answerIndex: 1, explanation: "For a diagonal matrix, multiply the diagonal: 2 × 3 = 6." },
   ],
   he_english: [
     { question: "A paragraph's opening main-idea sentence is the…", choices: ["thesis","topic sentence","citation","conclusion"], answerIndex: 1, explanation: "The topic sentence states the paragraph's point." },
@@ -142,6 +152,9 @@ export const BANK = {
     { question: "A counterargument…", choices: ["supports your point","opposes your position","is the conclusion","is a citation"], answerIndex: 1, explanation: "It presents the opposing view." },
     { question: "'Objective' writing is…", choices: ["emotional","based on facts, not feelings","fictional","purely persuasive"], answerIndex: 1, explanation: "It relies on evidence, not opinion." },
     { question: "A bibliography lists…", choices: ["only quotes","all sources used","chapter titles","page numbers"], answerIndex: 1, explanation: "It records every source consulted." },
+    { question: "Paraphrasing means…", choices: ["copying word for word","restating ideas in your own words","quoting with page numbers","removing citations"], answerIndex: 1, explanation: "You express the source's idea in your own words, with a reference." },
+    { question: "An abstract in an academic paper…", choices: ["summarises the whole work","lists the references","is the first quotation","names the publisher"], answerIndex: 0, explanation: "The abstract is a short summary of the paper." },
+    { question: "'Anomaly' most nearly means…", choices: ["a common event","something that deviates from the norm","a summary","a citation style"], answerIndex: 1, explanation: "An anomaly departs from what is standard or expected." },
   ],
   he_science: [
     { question: "Newton's second law: F =", choices: ["mv","ma","m/a","mgh"], answerIndex: 1, explanation: "Force = mass × acceleration." },
@@ -156,5 +169,8 @@ export const BANK = {
     { question: "Enzymes are…", choices: ["sugars","biological catalysts","fats","minerals"], answerIndex: 1, explanation: "They speed up reactions in living things." },
     { question: "The first law of thermodynamics says…", choices: ["energy is created","energy is conserved","entropy decreases","mass increases"], answerIndex: 1, explanation: "Energy cannot be created or destroyed." },
     { question: "A strong acid has a pH…", choices: ["close to 1","exactly 7","close to 14","above 7"], answerIndex: 0, explanation: "Strong acids sit near pH 0–1." },
+    { question: "Osmosis is the movement of…", choices: ["salt into cells","water across a partially permeable membrane","proteins into the nucleus","oxygen into the blood only"], answerIndex: 1, explanation: "Water moves from dilute to concentrated solution across the membrane." },
+    { question: "The SI unit of electrical resistance is the…", choices: ["volt","amp","ohm","watt"], answerIndex: 2, explanation: "Resistance is measured in ohms (Ω)." },
+    { question: "Photosynthesis converts light energy into…", choices: ["heat only","chemical energy","sound energy","nuclear energy"], answerIndex: 1, explanation: "Light energy is stored as chemical energy in glucose." },
   ],
 };

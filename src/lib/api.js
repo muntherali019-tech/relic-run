@@ -11,15 +11,47 @@ export function extractJSON(text) {
   return JSON.parse(t);
 }
 
-async function call({ system, content, max_tokens = 1500 }) {
-  const res = await fetch(`${BASE}/claude`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, content, max_tokens }),
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
+// Typed API error so the UI can tell offline / timeout / rate-limited / server
+// failures apart. `message` is always safe to show to a learner.
+export class ApiError extends Error {
+  constructor(message, { kind = "server", status = 0, retryAfter = 0 } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.kind = kind;       // "offline" | "timeout" | "network" | "rate-limited" | "server"
+    this.status = status;
+    this.retryAfter = retryAfter; // seconds, for kind === "rate-limited"
+  }
+}
+
+const TIMEOUT_MS = 90000; // image marking can legitimately take a while
+
+async function call({ system, content, max_tokens = 1500, feature }) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new ApiError("You're offline — Mochi needs the internet for this.", { kind: "offline" });
+  }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`${BASE}/claude`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ system, content, max_tokens, feature }),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    if (e?.name === "AbortError") throw new ApiError("That took too long — please try again.", { kind: "timeout" });
+    throw new ApiError("Couldn't reach Mochi — check your connection and try again.", { kind: "network" });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.status === 429) {
+    const retryAfter = Math.max(1, Number(res.headers.get("retry-after")) || 30);
+    throw new ApiError(`Mochi needs a little rest — try again in ${retryAfter} seconds.`, { kind: "rate-limited", status: 429, retryAfter });
+  }
+  if (!res.ok) throw new ApiError("Mochi had a hiccup — please try again in a moment.", { status: res.status });
   const data = await res.json();
-  if (data.error) throw new Error(data.error);
+  if (data.error) throw new ApiError(String(data.error.message || data.error), { status: res.status });
   return (data.content || []).map((b) => (b.type === "text" ? b.text : "")).join("\n");
 }
 
@@ -33,7 +65,7 @@ export async function askTutor({ messages = [], ks = "ks2", language = "English"
     `If a learner asks for the answer to what looks like a live test or homework they must do alone, teach the underlying idea instead. If anything is inappropriate or unsafe, gently steer back to learning.` +
     langClause;
   const transcript = messages.map((m) => `${m.role === "user" ? "Learner" : "Mochi"}: ${m.text}`).join("\n");
-  const text = await call({ system, content: `${transcript}\nMochi:`, max_tokens: 600 });
+  const text = await call({ system, content: `${transcript}\nMochi:`, max_tokens: 600, feature: "chat" });
   return text.trim();
 }
 
@@ -52,6 +84,7 @@ export async function generateQuestions({ ks, subject, topic, count = 15, langua
     system,
     content: `Topic: ${topic}. Make them fun and ${diff}. Do not repeat questions.`,
     max_tokens: 3500,
+    feature: "questions",
   });
   const parsed = extractJSON(text);
   return (parsed.questions || []).filter((q) => Array.isArray(q.choices) && q.choices.length === 4).slice(0, count);
@@ -70,6 +103,7 @@ export async function markHomework({ ks, subject, image, language = "English" })
     ' {"subjectDetected":"...","summary":"1-2 friendly sentences","score":"e.g. 6 out of 8 or null","items":[{"label":"Question 1","correct":true,"comment":"short note"}],"praise":"one cheerful line","nextStep":"one gentle tip"}';
   const text = await call({
     max_tokens: 1600,
+    feature: "mark",
     system,
     content: [
       { type: "image", source: { type: "base64", media_type: image.mime, data: image.data } },
@@ -93,7 +127,7 @@ export async function solveQuestion({ ks, image, text, language = "English" }) {
   const content = [];
   if (image) content.push({ type: "image", source: { type: "base64", media_type: image.mime, data: image.data } });
   content.push({ type: "text", text: text?.trim() ? `Question: ${text.trim()}` : "Solve the question in the image." });
-  const out = await call({ max_tokens: 1400, system, content });
+  const out = await call({ max_tokens: 1400, system, content, feature: "solve" });
   return extractJSON(out);
 }
 
@@ -107,6 +141,7 @@ export async function suggestGoal({ ks, subject, childName = "the learner", focu
     system,
     content: `Learner: ${childName}. ${focus ? "Focus on: " + focus + ". " : ""}Make it motivating and age-appropriate.`,
     max_tokens: 400,
+    feature: "goal",
   });
   return extractJSON(out);
 }
@@ -121,7 +156,7 @@ export async function languageLesson({ language, topic = "Greetings", level = "b
     `"phrases":[{"target":"phrase in ${language} native script","roman":"easy pronunciation in Latin letters","english":"English meaning","tip":"short friendly tip"}],` +
     `"quiz":[{"prompt":"short English question to pick the right ${language} phrase or its meaning","options":["..","..","..",".."],"answerIndex":0}]}. ` +
     `Use 5-6 phrases and 3 quiz questions. Always include "roman" for non-Latin scripts.`;
-  const out = await call({ system, content: `Teach this now: ${topic} (${level}).`, max_tokens: 1300 });
+  const out = await call({ system, content: `Teach this now: ${topic} (${level}).`, max_tokens: 1300, feature: "language" });
   return extractJSON(out);
 }
 
@@ -133,7 +168,7 @@ export async function progressNote({ childName = "your child", ks, overview, wea
   const content =
     `Child: ${childName}. Stage: ${ks}. Accuracy: ${overview.accuracy}%. Questions answered: ${overview.answered}. Rounds: ${overview.rounds}. ` +
     `Topics to practise: ${weak.map((w) => w.topic).join(", ") || "none in particular"}. Goals: ${goalsDone} done, ${goalsOpen} open.`;
-  const out = await call({ system, content, max_tokens: 220 });
+  const out = await call({ system, content, max_tokens: 220, feature: "note" });
   return String(out).trim();
 }
 
@@ -149,7 +184,7 @@ export async function courseLesson({ course, module, level = "exam preparation",
     ` Reply with ONLY raw JSON (no markdown): {"intro":"one motivating sentence to say aloud","keypoints":["concise revision points"],` +
     `"quiz":[{"q":"exam-style question","options":["..","..","..",".."],"answerIndex":0,"why":"short explanation"}]}. ` +
     `Use 5-7 keypoints and 4 exam-style questions. If unsure, stay general rather than inventing specifics.`;
-  const out = await call({ system, content: `Teach module: ${module}. Audience: adult revising for ${course} assessment.`, max_tokens: 1600 });
+  const out = await call({ system, content: `Teach module: ${module}. Audience: adult revising for ${course} assessment.`, max_tokens: 1600, feature: "course" });
   return extractJSON(out);
 }
 
@@ -163,7 +198,7 @@ export async function examQuestions({ course, modules = [], count = 10, language
     `Accurate and practical; name UK standards/regulations where appropriate but DO NOT invent specific clause or table numbers. Vary the difficulty.` +
     langClause +
     ` Reply with ONLY raw JSON (no markdown): {"quiz":[{"q":"...","options":["","","",""],"answerIndex":0,"why":"short explanation"}]}. Exactly ${count} questions, each with 4 options.`;
-  const out = await call({ system, content: `Generate ${count} exam questions for ${course}.`, max_tokens: 3200 });
+  const out = await call({ system, content: `Generate ${count} exam questions for ${course}.`, max_tokens: 3200, feature: "exam" });
   const data = extractJSON(out);
   return Array.isArray(data?.quiz) ? data.quiz : [];
 }
@@ -177,7 +212,7 @@ export async function voiceCommand({ transcript, actions = [] }) {
     `Map phrases like "open the calculator" -> calculator; "show my progress" -> grownups; "subscribe"/"plans" -> plans; "languages" -> languages; "courses"/"exam" -> courses; "home" -> home; "settings" -> settings. ` +
     `For practice/quiz requests use action "play" and fill subject, topic and count: e.g. "give me 10 KS2 fractions questions" -> {action:"play",ks:"ks2",subject:"maths",topic:"fractions",count:10}. ` +
     `For changing my speaking language use action "setLanguage" with the language name: e.g. "speak in French"/"change language to Spanish" -> {action:"setLanguage",language:"French"}. If unclear, use action "unknown".`;
-  const out = await call({ system, content: `Command: "${transcript}"`, max_tokens: 220 });
+  const out = await call({ system, content: `Command: "${transcript}"`, max_tokens: 220, feature: "voice" });
   return extractJSON(out);
 }
 
@@ -185,7 +220,7 @@ export async function voiceCommand({ transcript, actions = [] }) {
 export async function translateText({ text, language }) {
   if (!text) return "";
   const system = `Translate the user's text into ${language}. Reply with ONLY the natural translation — no quotes, no notes, no transliteration, no English.`;
-  const out = await call({ system, content: String(text), max_tokens: 400 });
+  const out = await call({ system, content: String(text), max_tokens: 400, feature: "translate" });
   return (out || "").trim();
 }
 
@@ -196,7 +231,7 @@ export async function translateBatch({ strings = [], language }) {
     `Translate each item of the user's JSON array of short app UI strings into ${language}. ` +
     `Keep brand names (Education Academy, Mochi), prices like "£3/mo", emoji and placeholders intact. ` +
     `Reply with ONLY a raw JSON array of strings, the same length and order, each the translation of the matching item — no notes.`;
-  const out = await call({ system, content: JSON.stringify(strings), max_tokens: 2000 });
+  const out = await call({ system, content: JSON.stringify(strings), max_tokens: 2000, feature: "translate" });
   try { const arr = JSON.parse((out || "").replace(/```json/gi, "").replace(/```/g, "").trim()); return Array.isArray(arr) ? arr : []; }
   catch { return []; }
 }

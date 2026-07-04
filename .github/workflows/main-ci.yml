@@ -1,0 +1,59 @@
+name: Main App CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies (fail on high/critical)
+        run: npm audit --audit-level=high
+
+      - name: Run tests
+        run: npm test
+
+      - name: Syntax-check server
+        run: |
+          for f in server/*.js; do
+            echo "checking $f"
+            node --check "$f"
+          done
+
+      - name: Build web
+        run: npm run build:web
+
+      - name: Build app (Capacitor bundle)
+        run: npm run build:app
+
+      - name: Build onefile
+        run: npm run build:onefile
+
+      - name: Smoke-test API (demo mode, no secrets)
+        run: |
+          PORT=8787 node server/index.js &
+          SRV=$!
+          for i in $(seq 1 20); do
+            if curl -fsS http://localhost:8787/api/health > /dev/null; then
+              echo "health OK"; break
+            fi
+            sleep 0.5
+          done
+          curl -fsS http://localhost:8787/api/health
+          curl -fsS -X POST http://localhost:8787/api/auth/signup \
+            -H 'content-type: application/json' \
+            -d '{"email":"ci@example.com","password":"secret123"}' > /dev/null && echo "signup OK"
+          kill $SRV 2>/dev/null || true
