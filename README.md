@@ -4,6 +4,10 @@ A cat-themed learning game for UK learners, hosted by **Mochi** the ginger cat. 
 
 Built with **Vite + React**, a small **Express** backend (so your API key never reaches the browser, plus accounts, sync, classes and goals), and **Capacitor** for an Android build. A standalone marketing site lives in `marketing/index.html`.
 
+Also on board: **🏛️ Relic Run** (`public/relicrun/`, served at `/relicrun/`) — a retro Pac-Man-style chase through five real archaeological sites. Guards sweep each level from entrance to exit while you collect historically accurate artifacts (each pickup shows a museum-card fact). Linked from the app's home screen.
+
+> **Reelmint** (the AI video studio) has been extracted into its own standalone project — its full history remains in this repo's git log prior to the extraction commit.
+
 > **Shipping to Google Play?** Read **`DEPLOYMENT.md`** — it's the ordered, step-by-step guide, marking what's done in code vs what needs your own accounts, keys and hosting.
 
 ---
