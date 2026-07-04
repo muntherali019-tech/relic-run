@@ -14,6 +14,9 @@ import Plans from "./components/screens/Plans.jsx";
 import Paywall from "./components/screens/Paywall.jsx";
 import SubjectMenu from "./components/screens/SubjectMenu.jsx";
 import Dashboard from "./components/screens/Dashboard.jsx";
+import Play from "./components/screens/Play.jsx";
+import Home from "./components/screens/Home.jsx";
+import Gate from "./components/screens/Gate.jsx";
 import SettingsScreen from "./components/screens/SettingsScreen.jsx";
 import Leaderboard from "./components/screens/Leaderboard.jsx";
 import { KS_LABEL, KS_META, SUBJ, SUBJECTS_BY_KS, TOPICS, PLANS, planForKs } from "./data/curriculum.js";
@@ -48,14 +51,11 @@ const ScreenLoading = () => (
 
 const ROUND_SIZE = 15;
 const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
-const fmtDate = (ts) => new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-const accColor = (p) => (p >= 70 ? "var(--good)" : p >= 40 ? "var(--sunny)" : "var(--coral)");
 
 // Set this to your hosted policy before release (or via VITE_PRIVACY_URL at build time).
 const PRIVACY_URL = import.meta.env.VITE_PRIVACY_URL || "/privacy";
 const TERMS_URL = import.meta.env.VITE_TERMS_URL || "/terms";
 
-// One-time disclosure shown before the camera features send a photo to the AI.
 export default function App() {
   const [state, setState] = useState(loadState);
   // Persist at most every 400ms — a quiz answer updates state several times in
@@ -668,65 +668,12 @@ export default function App() {
       )}
       {/* ---------- HOME ---------- */}
       {screen === "home" && (
-        <main>
-          <div className="greet">
-            <div className="bob" style={{ display: "inline-block" }}><Mochi size={140} expression="happy" speaking={speaking} /></div>
-            <h2 className="fred">{t("Hello! I'm Mochi 🐾")}</h2>
-            <p>{t("Who's learning today?")}</p>
-          </div>
-          <div className="motiv"><Sparkles size={18} className="spark" color="#F2A33A" />{motiv}</div>
-          <div className="todayStrip">
-            <button className="chip tap" onClick={() => setScreen("badges")} aria-label="Badges">🏅 {tf("{e} of {t} earned", { e: earnedCount(state), t: BADGES.length })}</button>
-            <button className="chip tap" onClick={() => setScreen("shop")} aria-label="Shop">🎩 {t("Shop")}</button>
-            <button className="chip tap" onClick={() => setScreen("board")} aria-label="Leaderboard">🏆 {t("Leaderboard")}</button>
-            {state.streakDays > 0 && <span className="chip flame">🔥 {tf("{d} day streak", { d: state.streakDays })}</span>}
-            <span className="goalring" style={{ "--p": Math.min(100, Math.round((starsToday(state) / DAILY_GOAL) * 100)) }} title={t("Daily goal")} aria-label={t("Daily goal")}>
-              <i>{starsToday(state)}/{DAILY_GOAL}</i>
-            </span>
-          </div>
-          <button className={`daily ${dailyDone(state) ? "done" : ""}`} onClick={() => !dailyDone(state) && startDaily()} disabled={dailyDone(state)}>
-            <span className="dico">⚡</span>
-            <span style={{ flex: 1, textAlign: "left" }}>
-              <span className="fred" style={{ fontWeight: 700, fontSize: 17 }}>{t("Daily Challenge")}</span>
-              <span className="muted" style={{ display: "block", fontSize: 13 }}>{dailyDone(state) ? t("Daily challenge done ✓") : "+5 ⭐"}</span>
-            </span>
-            {!dailyDone(state) && <ArrowRight size={20} />}
-          </button>
-          <div className="homeq">
-            <button className="qbtn" onClick={openAsk}>💬 {t("Ask Mochi")}</button>
-            <button className="qbtn" onClick={startSmart}>🎯 {t("Smart Practice")}</button>
-          </div>
-          {smartMsg && <p className="note" style={{ textAlign: "center", marginTop: 4 }}>{smartMsg}</p>}
-          <div className="pickgrid">
-            {KS_META.map((m) => {
-              const subbed = state.subs[m.plan];
-              const unlocked = subbed || trial.trialActive();
-              return (
-                <button key={m.id} className="pick" style={{ background: m.grad }} onClick={() => chooseKs(m.id)}>
-                  <div className="em">{m.emoji}</div>
-                  <div style={{ flex: 1 }}><div className="tt">{KS_LABEL[m.id]}</div><div className="ds">{m.age}</div></div>
-                  <span className="lockbadge">{subbed ? <><Check size={14} /> {t("Unlocked")}</> : unlocked ? <><Check size={14} /> {t("Free trial")}</> : <><Lock size={13} /> {priceFor(m.plan)}/mo</>}</span>
-                </button>
-              );
-            })}
-          </div>
-          <button className="card toolcard" onClick={() => setScreen("languages")} aria-label="Open Languages">
-            <div className="toolicon" style={{ background: "var(--mint-soft, #dcf7f1)", fontSize: 24 }} aria-hidden="true">🌍</div>
-            <div style={{ flex: 1 }}><div className="fred" style={{ fontWeight: 600, fontSize: 19 }}>{t("Languages")}</div>
-              <div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>{t("Speak with your AI teacher — 8 languages")}</div></div>
-            <LangIcon size={22} color="#129a83" />
-          </button>
-          <button className="card toolcard" onClick={() => { if (state.subs.adult || trial.trialActive()) setScreen("courses"); else { setPendingKs("he"); setScreen("paywall"); } }} aria-label="Open Advanced courses">
-            <div className="toolicon" style={{ background: "var(--purple-soft)", fontSize: 24 }} aria-hidden="true">🎓</div>
-            <div style={{ flex: 1 }}><div className="fred" style={{ fontWeight: 600, fontSize: 19 }}>{t("Advanced courses")}</div>
-              <div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>{t("Gas · Electrical · Renewables · Business — exam‑prep")}</div></div>
-            <GraduationCap size={22} color="#6b4fb0" />
-          </button>
-          <p className="note">
-            {t("Start a 72-hour free trial, then Junior £3/mo (KS1 & KS2) or Adult £5/mo (KS3, Higher Education & courses).")}<br />
-            <button className="linkbtn" onClick={openGate}>{t("Grown-ups: progress & reports")}</button> · <button className="linkbtn" onClick={openPrivacy}>{t("Privacy")}</button> · <button className="linkbtn" onClick={openTerms}>{t("Terms")}</button>
-          </p>
-        </main>
+        <Home state={state} motiv={motiv} speaking={speaking} smartMsg={smartMsg} startDaily={startDaily}
+          openAsk={openAsk} startSmart={startSmart} chooseKs={chooseKs} priceFor={priceFor}
+          openBadges={() => setScreen("badges")} openShop={() => setScreen("shop")} openBoard={() => setScreen("board")}
+          openLanguages={() => setScreen("languages")}
+          openCourses={() => { if (state.subs.adult || trial.trialActive()) setScreen("courses"); else { setPendingKs("he"); setScreen("paywall"); } }}
+          openGate={openGate} openPrivacy={openPrivacy} openTerms={openTerms} />
       )}
 
       {/* ---------- PLANS ---------- */}
@@ -752,58 +699,11 @@ export default function App() {
 
       {/* ---------- PLAY ---------- */}
       {screen === "play" && (
-        <main>
-          <button className="iconbtn" onClick={() => setScreen("menu")} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          {loadingQ && (
-            <div style={{ textAlign: "center", marginTop: 40 }}>
-              <div className="bob" style={{ display: "inline-block" }}><Mochi size={130} expression="think" /></div>
-              <p className="fred" style={{ fontSize: 20, marginTop: 10 }}>{t("Mochi is thinking up your puzzles…")}</p>
-              <Loader2 className="wiggle" size={26} color="#FF8A47" />
-            </div>
-          )}
-          {!loadingQ && qi < questions.length && (() => {
-            const q = questions[qi]; const answered = picked !== null; const ok = answered && picked === q.answerIndex;
-            return (<>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-                <span className="qtag">{SUBJ[subject].name} · {topic} · Q{qi + 1}/{questions.length}</span>
-                {streak >= 2 && <span className="streak">🔥 {streak} streak</span>}
-              </div>
-              <div className="progress"><i style={{ width: `${(qi / questions.length) * 100}%` }} /></div>
-              <div className="qcard card" style={{ marginTop: 16 }}>
-                <Mochi size={92} expression={answered ? (ok ? "happy" : "oops") : "idle"} speaking={speaking} />
-                <div className="qtext fred">{q.question}</div>
-                <button className="spk" onClick={() => sayQuestion(q)} aria-label="Hear the question and options" style={{ margin: "4px auto 0" }}><Volume2 size={20} /></button>
-              </div>
-              <div className="choices">
-                {q.choices.map((c, i) => {
-                  let cls = "choice";
-                  if (answered && i === q.answerIndex) cls += " correct";
-                  else if (answered && i === picked) cls += " wrong";
-                  return <button key={i} className={cls} disabled={answered} onClick={() => answer(i)}>{c}</button>;
-                })}
-              </div>
-              {answered && <div className={`feedback ${ok ? "ok" : "no"} pop`} role="status" aria-live="assertive">{ok ? <Check size={20} /> : <X size={20} />}<div>{t(ok ? "Purr-fect!" : "Good try!")} {q.explanation}</div></div>}
-              {answered && <button className="bigbtn" onClick={nextQ}>{qi + 1 < questions.length ? t("Next puzzle →") : t("See my stars ⭐")}</button>}
-              {usedFallback && <p className="note">{t("Playing offline puzzles — connect to the internet for fresh ones.")}</p>}
-            </>);
-          })()}
-          {!loadingQ && questions.length > 0 && qi >= questions.length && (() => {
-            const total = questions.length; const earned = Math.max(1, Math.round((correctCount / total) * 5));
-            return (
-              <div className="summary card" style={{ marginTop: 18 }}>
-                <div className="bob" style={{ display: "inline-block" }}><Mochi size={130} expression="happy" speaking={speaking} /></div>
-                <h2 className="fred" style={{ margin: "8px 0 0" }}>{t("Round complete!")}</h2>
-                <div className="starsRow">{[0, 1, 2, 3, 4].map((n) => <Star key={n} size={34} fill={n < earned ? "#FFC83D" : "#eee"} color={n < earned ? "#FFC83D" : "#eee"} className={n < earned ? "pop" : ""} />)}</div>
-                <p style={{ fontWeight: 800, fontSize: 18, margin: 0 }}>{tf("You got {c} out of {n} right", { c: correctCount, n: total })}</p>
-                {bestStreak >= 3 && <p style={{ fontWeight: 700, color: "var(--ginger-deep)", margin: "6px 0 0" }}>🔥 Best streak: {bestStreak}</p>}
-                <button className="bigbtn mint" onClick={() => startRound(ks, subject, topic)}>{t("Play again 🔁")}</button>
-                <button className="bigbtn ghost" onClick={() => shareScore(correctCount, total)}>📣 {t("Share my score")}</button>
-                <button className="bigbtn ghost" onClick={() => setScreen("menu")}>{t("Pick another topic")}</button>
-                {shareMsg && <p className="note" style={{ textAlign: "center" }}>{shareMsg}</p>}
-              </div>
-            );
-          })()}
-        </main>
+        <Play ks={ks} subject={subject} topic={topic} questions={questions} qi={qi} picked={picked}
+          streak={streak} bestStreak={bestStreak} correctCount={correctCount} loadingQ={loadingQ}
+          usedFallback={usedFallback} speaking={speaking} shareMsg={shareMsg}
+          answer={answer} nextQ={nextQ} sayQuestion={sayQuestion} startRound={startRound} shareScore={shareScore}
+          onBack={() => setScreen("menu")} />
       )}
 
       {/* ---------- SCAN & SOLVE ---------- */}
@@ -824,25 +724,7 @@ export default function App() {
 
       {/* ---------- GROWN-UPS GATE ---------- */}
       {screen === "gate" && (
-        <main>
-          <button className="iconbtn" onClick={goHome} aria-label="Back" style={{ marginTop: 8 }}><ArrowLeft size={20} /></button>
-          <div className="gatebox">
-            <Mochi size={110} expression="think" />
-            <h2 className="fred" style={{ marginTop: 6 }}>For grown-ups</h2>
-            <p style={{ color: "var(--muted)", fontWeight: 700 }}>
-              {gate.intent === "purchase" ? "To confirm a purchase, please answer this:" : "To see progress, answer this:"}
-            </p>
-            <p className="fred" style={{ fontSize: 30, margin: "8px 0 0" }}>{gate.a} × {gate.b} = ?</p>
-            <div><input className="gatein" inputMode="numeric" value={gate.val} autoFocus
-              onChange={(e) => setGate((g) => ({ ...g, val: e.target.value.replace(/[^0-9]/g, ""), err: false }))}
-              onKeyDown={(e) => e.key === "Enter" && checkGate()} /></div>
-            {gate.err && <p style={{ color: "var(--bad)", fontWeight: 800, marginTop: 8 }}>Not quite — try again.</p>}
-            {buyError && <p className="err">{buyError}</p>}
-            <button className="bigbtn purple" disabled={buying} onClick={checkGate}>
-              {buying ? <Loader2 className="wiggle" size={18} /> : gate.intent === "purchase" ? "Confirm" : "Enter dashboard"}
-            </button>
-          </div>
-        </main>
+        <Gate gate={gate} setGate={setGate} checkGate={checkGate} buying={buying} buyError={buyError} goHome={goHome} />
       )}
 
       {/* ---------- DASHBOARD ---------- */}
