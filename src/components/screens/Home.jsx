@@ -67,6 +67,11 @@ export default function Home({
           <div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>{t("Gas · Electrical · Renewables · Business — exam‑prep")}</div></div>
         <GraduationCap size={22} color="#6b4fb0" />
       </button>
+      <button className="card toolcard" onClick={() => { try { window.location.href = "/relicrun/"; } catch {} }} aria-label="Play Relic Run">
+        <div className="toolicon" style={{ background: "var(--sunny-soft, #fdf3d5)", fontSize: 24 }} aria-hidden="true">🏛️</div>
+        <div style={{ flex: 1 }}><div className="fred" style={{ fontWeight: 600, fontSize: 19 }}>{t("Relic Run")}</div>
+          <div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>{t("Retro artifact hunt — dodge the guards through real history")}</div></div>
+      </button>
       <p className="note">
         {t("Start a 72-hour free trial, then Junior £3/mo (KS1 & KS2) or Adult £5/mo (KS3, Higher Education & courses).")}<br />
         <button className="linkbtn" onClick={openGate}>{t("Grown-ups: progress & reports")}</button> · <button className="linkbtn" onClick={openPrivacy}>{t("Privacy")}</button> · <button className="linkbtn" onClick={openTerms}>{t("Terms")}</button>
