@@ -14,6 +14,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 dotenv.config();
 
 const app = express();
+// Behind a reverse proxy (Render, Heroku, nginx…) set TRUST_PROXY=1 so req.ip is
+// the real client address. Without it every visitor shares the proxy's IP, so one
+// busy user's rate limit throttles the whole site. Leave unset when clients
+// connect directly — trusting X-Forwarded-For there lets callers spoof their IP.
+if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
 // Lock CORS to your site in production by setting CORS_ORIGIN (comma-separated for several).
 const corsOrigins = (process.env.CORS_ORIGIN || "").split(",").map((s) => s.trim()).filter(Boolean);
 app.use(cors(corsOrigins.length ? { origin: corsOrigins } : {}));

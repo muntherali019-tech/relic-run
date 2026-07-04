@@ -13,6 +13,14 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      # Render terminates TLS at its proxy; this makes req.ip the real client
+      # address so per-IP rate limits apply per visitor, not site-wide.
+      - key: TRUST_PROXY
+        value: "1"
+      # Signs auth tokens. Auto-generated so production never runs on the
+      # insecure dev fallback secret.
+      - key: AUTH_SECRET
+        generateValue: true
       # Paste these values in the Render dashboard (they are secret, so not stored here):
       - key: ANTHROPIC_API_KEY
         sync: false

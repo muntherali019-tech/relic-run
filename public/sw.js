@@ -31,7 +31,10 @@ self.addEventListener("fetch", (e) => {
     e.respondWith((async () => {
       try {
         const fresh = await fetch(e.request);
-        if (fresh.ok) (await caches.open(SHELL)).put("/", fresh.clone());
+        // Only the app shell itself may refresh the cached shell — otherwise a
+        // visit to /privacy or /terms would overwrite it and offline reloads
+        // of the app would serve the wrong page.
+        if (fresh.ok && url.pathname === "/") (await caches.open(SHELL)).put("/", fresh.clone());
         return fresh;
       } catch {
         return (await caches.match("/")) || Response.error();

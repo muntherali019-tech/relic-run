@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
-import {
-  Camera, Star, ArrowLeft, ArrowRight, Check, X, RefreshCw, Sparkles, Loader2, Bell,
-  Lock, Crown, ScanLine, Lightbulb, BarChart3, Volume2, VolumeX, Settings, Languages as LangIcon, GraduationCap, Mic, Calculator as CalcIcon, Globe,
-} from "lucide-react";
+import { Star, Check, Loader2, Crown, BarChart3, Volume2, VolumeX, Settings, Mic } from "lucide-react";
 import Mochi from "./components/Mochi.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Badges from "./components/screens/Badges.jsx";
@@ -19,23 +16,22 @@ import Home from "./components/screens/Home.jsx";
 import Gate from "./components/screens/Gate.jsx";
 import SettingsScreen from "./components/screens/SettingsScreen.jsx";
 import Leaderboard from "./components/screens/Leaderboard.jsx";
-import { KS_LABEL, KS_META, SUBJ, SUBJECTS_BY_KS, TOPICS, PLANS, planForKs } from "./data/curriculum.js";
+import { TOPICS, PLANS, planForKs } from "./data/curriculum.js";
 import { LANGUAGES } from "./data/languages.js";
 import { BANK } from "./data/bank.js";
 import { generateQuestions, markHomework, solveQuestion, voiceCommand, translateText, askTutor } from "./lib/api.js";
-import { loadState, saveState, defaultState, recordRound, overview, weakestTopics, recordCourseResult, addStars, touchStreak, DAILY_GOAL, starsToday, dailyDone, markDailyDone } from "./lib/progress.js";
-import { badgeStatus, earnedCount, BADGES } from "./lib/achievements.js";
+import { loadState, saveState, defaultState, recordRound, overview, weakestTopics, recordCourseResult, addStars, touchStreak, dailyDone, markDailyDone } from "./lib/progress.js";
 import { burstConfetti } from "./lib/celebrate.js";
 import { share as shareThing, siteUrl } from "./lib/share.js";
 import { isWeb } from "./lib/platform.js";
-import { SHOP, FREE, COLOR_THEMES, setEquipped, itemCost } from "./lib/mochiShop.js";
+import { SHOP, FREE, setEquipped, itemCost } from "./lib/mochiShop.js";
 import * as reminders from "./lib/reminders.js";
 const GrownUps = lazy(() => import("./components/GrownUps.jsx"));
 import { pickMessage } from "./lib/motivation.js";
 import * as cloud from "./lib/cloud.js";
 import * as billing from "./lib/billing.js";
 import * as speech from "./lib/speech.js";
-import { useT, setUiLang, resetTranslations, tf } from "./lib/i18n.js";
+import { useT, setUiLang, tf } from "./lib/i18n.js";
 import * as recog from "./lib/recognition.js";
 import * as review from "./lib/review.js";
 import * as trial from "./lib/trial.js";
