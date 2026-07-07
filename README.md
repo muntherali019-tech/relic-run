@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> **This repository is deprecated.** It was a working copy of Education Academy, and every improvement made here (vite 8, test suite, API hardening, offline support, the App.jsx refactor, and more) has been merged into the canonical repo: **[muntherali019-tech/Higher-education-](https://github.com/muntherali019-tech/Higher-education-)** — the repo behind the live site at <https://higher-education.onrender.com>. Develop there; this repo is kept only for history and can be archived or deleted.
+
 # 🐱 Education Academy
 
 A cat-themed learning game for UK learners, hosted by **Mochi** the ginger cat. Covers four stages — **Key Stage 1, Key Stage 2, Key Stage 3, and Higher Education** — with 15-question puzzle rounds, AI homework photo-marking, a **scan-and-solve** helper, a subscription paywall, **per-key-stage inspirational theming**, **accounts with cross-device sync**, and a **parent & teacher portal** with separate goal/task tracks and AI-assisted goal suggestions.
