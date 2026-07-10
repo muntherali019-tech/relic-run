@@ -2,9 +2,9 @@
 description: CI for the main app — build all modes, audit, smoke-test the API
 ---
 
-The repo has CI only for reelmint/ (.github/workflows/ci.yml). Add a workflow for the main app that fails fast on the things this repo has actually broken before: dependency vulnerabilities, build breakage across the three modes, and server boot errors.
+The repo's CI (.github/workflows/ci.yml) builds and tests the main app. Keep it fast-failing on the things this repo has actually broken before: dependency vulnerabilities, build breakage across the three modes, and server boot errors.
 
-Create .github/workflows/main-ci.yml that, on push/PR:
+Ensure the workflow, on push/PR:
 1. Sets up Node 22 with npm cache keyed to package-lock.json.
 2. `npm ci`, then `npm audit --audit-level=high` (fail on high/critical).
 3. Builds all three modes: `npm run build`, `npm run build:app`, `npm run build:onefile`.

@@ -4,7 +4,7 @@ Tracking the 15 master prompts scaffolded in `.claude/commands/` (run any of the
 
 | # | Prompt | Status | Notes |
 |---|--------|--------|-------|
-| 1 | `/audit-deps` | ✅ Applied | vite 5 → 8.1.3, @vitejs/plugin-react → 6.0.3, vite-plugin-singlefile → 2.3.3. `npm audit`: **0 vulnerabilities** in both the root and `reelmint/`. |
+| 1 | `/audit-deps` | ✅ Applied | vite 5 → 8.1.3, @vitejs/plugin-react → 6.0.3, vite-plugin-singlefile → 2.3.3. `npm audit`: **0 vulnerabilities**. (Reelmint now lives in its own repo.) |
 | 2 | `/harden-api` | ✅ Applied | Rate limiting on `/api/claude`, `/api/tts` (30/5 min per IP) and auth routes (10/15 min); model allowlist + `max_tokens` cap; security headers; `CORS_ORIGIN` restriction; 8-char password minimum; missing-`AUTH_SECRET` production warning. Verified live with curl. |
 | 3 | `/optimize-bundle` | ✅ Applied | Lazy-loaded GrownUps, Languages, Courses, Calculator. Main bundle 340 → 276 kB (gzip 104 → 88 kB). |
 | 4 | `/ci-pipeline` | ✅ Applied | `.github/workflows/main-ci.yml`: npm ci → audit (fail on high) → tests → server syntax check → all three builds → API smoke test. |
