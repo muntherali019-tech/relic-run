@@ -1,19 +1,19 @@
 # Verifying Education Academy
 
-## What I checked in this environment ✅
-Run against every file in the project:
-- **JavaScript syntax** (`node --check`) — all `server/*.js`, `src/lib/*.js`, `src/data/*.js`, `vite.config.js`: pass.
-- **JSX/React** (TypeScript transpile check) — `App.jsx`, all `components/*.jsx`, `main.jsx`: pass.
-- **JSON validity** — `package.json`, `capacitor.config.json`, `manifest.webmanifest`: pass.
-- **HTML** — all `marketing/*.html` + `index.html` well-formed.
-- **Component imports** — every `<Component>` used in `App.jsx` is either imported or defined in-file (no undefined components).
+## Verified live in Claude Code ✅ (2026-07-10)
+Full end-to-end run, not just static checks:
+- **`npm install`** — 242 packages, **0 vulnerabilities** (`npm audit`).
+- **`npm test`** — **26/26 passing** (node:test): server API over real HTTP (auth, access control, cascade deletes, rate limiter), progress/streak logic, offline-bank integrity.
+- **All three production builds pass** — `build:web`, `build:app`, `build:onefile`.
+- **PWA assets ship in the bundle** — `manifest.webmanifest`, `sw.js`, favicon and all icons present in `dist-web/`.
+- **Server boots** — `/api/health` returns `{ok:true}`; signup returns HTTP 200 in demo mode (no key required to run).
+- **Static checks still green** — JS syntax (`node --check`), JSX/React transpile, JSON validity, well-formed HTML, no undefined components.
 
-## What could NOT be checked here (no internet in this sandbox)
-- `npm install` (so no dependency resolution)
-- `vite build` / a real production bundle
-- Runtime behaviour, the AI calls, Stripe, Postgres, notifications
-
-These need a one-time run on your machine or in **Claude Code**.
+## Still requires your own credentials/services to exercise
+- The **AI calls** need `ANTHROPIC_API_KEY` set (app runs without it; AI features error until added).
+- **Stripe** billing needs your live keys + price IDs + webhook secret.
+- **Postgres** durability needs a real `DATABASE_URL` (falls back to the JSON file store otherwise).
+- **Push notifications** on the Capacitor build.
 
 ---
 
