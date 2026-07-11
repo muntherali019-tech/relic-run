@@ -26,6 +26,7 @@ import { share as shareThing, siteUrl } from "./lib/share.js";
 import { isWeb } from "./lib/platform.js";
 import { SHOP, FREE, setEquipped, itemCost } from "./lib/mochiShop.js";
 import * as reminders from "./lib/reminders.js";
+import { printWorksheet as buildPrintWorksheet } from "./lib/worksheet.js";
 const GrownUps = lazy(() => import("./components/GrownUps.jsx"));
 import { pickMessage } from "./lib/motivation.js";
 import * as cloud from "./lib/cloud.js";
@@ -332,6 +333,15 @@ export default function App() {
     if (!ok) { setPendingKs(ks || "ks2"); setScreen("paywall"); return; }
     if (chatMsgs.length === 0) setChatMsgs([{ role: "mochi", text: t("Hi! I'm Mochi. Ask me anything you're learning and I'll help you work it out. 🐾") }]);
     setScreen("ask");
+  }
+  // Printable worksheet — a premium tool for parents/teachers. Gated like the
+  // rest of the paid features; builds from the offline bank (no AI cost).
+  function printSheet(ksArg, subjectArg) {
+    const ok = state.subs.junior || state.subs.adult || trial.trialActive();
+    if (!ok) { setPendingKs(ksArg || ks || "ks2"); setScreen("paywall"); return; }
+    const opened = buildPrintWorksheet({ ks: ksArg || ks || "ks2", subject: subjectArg || subject || "maths", count: 12 });
+    if (opened) setSmartMsg(tf("🖨 Worksheet ready — printing {subject}!", { subject: (subjectArg || subject || "maths") }));
+    else setSmartMsg(t("Please allow pop-ups to print your worksheet."));
   }
   async function sendChat(text) {
     const q = (text != null ? text : chatInput).trim();
@@ -690,6 +700,7 @@ export default function App() {
           openCalc={() => setScreen("calc")}
           openSolve={() => { setScreen("solve"); setSolveResult(null); setSv({ preview: null, data: null, mime: null }); setSolveText(""); setSolveError(null); }}
           openMark={() => { setScreen("mark"); setMarkResult(null); setHw({ preview: null, data: null, mime: null }); setMarkError(null); }}
+          printWorksheet={printSheet}
           goHome={goHome} />
       )}
 

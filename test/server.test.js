@@ -170,10 +170,49 @@ test("deleting the account removes it and everything it owns", async () => {
   assert.equal(me.status, 401, "the deleted account's token no longer works");
 });
 
-test("the AI proxy fails safely without a key", async () => {
-  const r = await api("POST", "/api/claude", { body: { content: "hello" } });
-  assert.equal(r.status, 500);
-  assert.match(r.body.error, /ANTHROPIC_API_KEY/);
+test("the AI proxy serves believable demo content without a key", async () => {
+  // With no ANTHROPIC_API_KEY the proxy returns feature-shaped demo content
+  // (shaped exactly like the Anthropic Messages API) instead of erroring.
+  const health = await api("GET", "/api/health");
+  assert.equal(health.body.demo, true);
+
+  // A tutor chat reply comes back as a friendly text block.
+  const chat = await api("POST", "/api/claude", { body: { content: "hello", feature: "chat" } });
+  assert.equal(chat.status, 200);
+  const chatText = (chat.body.content || []).map((b) => b.text).join("");
+  assert.ok(chatText.length > 0);
+
+  // Questions come back as parseable JSON with the fields the UI needs.
+  const q = await api("POST", "/api/claude", {
+    body: { system: "Key Stage 2. The current subject is Maths. Create exactly 5 multiple-choice questions", content: "Topic: fractions", feature: "questions" },
+  });
+  assert.equal(q.status, 200);
+  const parsed = JSON.parse((q.body.content || []).map((b) => b.text).join(""));
+  assert.ok(Array.isArray(parsed.questions) && parsed.questions.length === 5);
+  for (const item of parsed.questions) {
+    assert.ok(item.question && Array.isArray(item.choices) && item.choices.length === 4);
+    assert.equal(typeof item.answerIndex, "number");
+  }
+});
+
+test("the plan catalog is exposed with annual, family and school plans", async () => {
+  const r = await api("GET", "/api/plans");
+  assert.equal(r.status, 200);
+  const ids = r.body.plans.map((p) => p.id);
+  for (const id of ["junior", "juniorAnnual", "adult", "adultAnnual", "family", "school"]) {
+    assert.ok(ids.includes(id), `catalog should include ${id}`);
+  }
+  // Without Stripe configured, nothing is purchasable yet.
+  assert.ok(r.body.plans.every((p) => p.available === false));
+  // Internal env-var names must not leak to clients.
+  assert.ok(r.body.plans.every((p) => !("priceEnv" in p)));
+});
+
+test("checkout rejects an unknown plan before touching Stripe", async () => {
+  const r = await api("POST", "/api/stripe/checkout", { body: { plan: "not-a-plan" } });
+  // Stripe isn't configured in tests, so a valid plan would 503; an unknown
+  // plan is rejected regardless. Either way it must never 200.
+  assert.ok(r.status === 400 || r.status === 503);
 });
 
 test("login is rate-limited after repeated attempts", async () => {
