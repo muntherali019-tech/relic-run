@@ -1,9 +1,9 @@
-import { ArrowLeft, Sparkles, ScanLine, Camera, Calculator as CalcIcon } from "lucide-react";
+import { ArrowLeft, Sparkles, ScanLine, Camera, Calculator as CalcIcon, Printer } from "lucide-react";
 import { useT } from "../../lib/i18n.js";
 import { KS_LABEL, SUBJ, SUBJECTS_BY_KS, TOPICS } from "../../data/curriculum.js";
 
 /* Stage menu (subject + topic picker and helper tools), extracted from App.jsx — markup unchanged. */
-export default function SubjectMenu({ ks, subject, setSubject, motiv, startRound, openCalc, openSolve, openMark, goHome }) {
+export default function SubjectMenu({ ks, subject, setSubject, motiv, startRound, openCalc, openSolve, openMark, printWorksheet, goHome }) {
   const t = useT();
   return (
     <main>
@@ -36,6 +36,13 @@ export default function SubjectMenu({ ks, subject, setSubject, motiv, startRound
             <div className="toolicon" style={{ background: "var(--purple-soft)" }}><CalcIcon size={26} color="#6b4fb0" /></div>
             <div><div className="fred" style={{ fontWeight: 600, fontSize: 19 }}>{t("Calculator")}</div>
               <div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>{t("A quick maths helper")}</div></div>
+          </button>
+        )}
+        {printWorksheet && (
+          <button className="card toolcard" onClick={() => printWorksheet(ks, subject)} aria-label="Print a worksheet">
+            <div className="toolicon" style={{ background: "var(--green-soft, #e6f6ea)" }}><Printer size={26} color="#2f9e5b" /></div>
+            <div><div className="fred" style={{ fontWeight: 600, fontSize: 19 }}>{t("Printable worksheet")}</div>
+              <div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>{t("A ready-to-print sheet with answer key")}</div></div>
           </button>
         )}
       </>)}

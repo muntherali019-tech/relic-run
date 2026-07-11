@@ -24,6 +24,17 @@ Built with **Vite + React**, a small **Express** backend (so your API key never 
 | Mochi's voice | Speaks questions, feedback and lessons aloud with an animated mouth — free **on‑device** voice, or a **premium cloud voice** (ElevenLabs) via `VITE_TTS=cloud` |
 | Accessibility | Screen‑reader labels, live‑region announcements, visible focus rings, and a "read aloud" mode for blind & early readers |
 | Progress | Saved on-device via `localStorage` (persists between visits) |
+| 🖨 Printable worksheets | Generate a ready-to-print worksheet (with a separate answer key) for any stage/subject from the offline bank — no AI cost, works offline. A premium parent/teacher tool. |
+| Plans that fit everyone | Junior · Higher — **monthly or annual** (2 months free), a **Family** plan (every stage for every child) and a **School / Classroom** B2B plan. See `GET /api/plans`. |
+| Believable demo mode | With no `ANTHROPIC_API_KEY`, every AI feature returns genuine, feature-shaped sample content (real questions, homework feedback, worked solutions, tutor replies, mini language lessons) so the app is fully clickable end-to-end. |
+| Best models wired in | Defaults to **Sonnet 5** for tutoring/marking quality, with per-feature routing (Haiku for translation/voice, Opus for photo marking) via `MODEL_<FEATURE>` env vars. |
+
+### New in this release
+
+- **Demo mode** (`server/demo.js`) — the AI proxy now serves realistic per-feature content instead of erroring when no key is set.
+- **Model upgrade** — `MODEL_DEFAULT` is now `claude-sonnet-5`; heavy vision and cheap high-volume work are individually routable.
+- **4 revenue features** — a **Printable Worksheet Generator** (new premium tool), **annual** billing, a **Family** plan and a **School / Classroom** plan, all driven by a single plan catalog (`server/plans.js`, `GET /api/plans`).
+- **UI polish** — gentle hover/entrance motion across cards, subjects and tools, all respecting `prefers-reduced-motion`.
 
 ---
 
