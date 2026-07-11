@@ -1,11 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
 
 :root{
-  --cream:#FFF4E6; --paper:#FFFFFF; --ink:#3A2A22; --muted:#8a766c;
-  --ginger:#FF8A47; --ginger-deep:#F26B2A;
+  --cream:#FFF4E6; --paper:#FFFFFF; --ink:#3A2A22; --muted:#756055;
+  --ginger:#FF8A47; --ginger-deep:#F26B2A; --ginger-text:#B84A0D;
   --mint:#23BFA6; --mint-soft:#DFF7F1;
   --coral:#FF6B8A; --coral-soft:#FFE3EA;
-  --sky:#4DA6FF; --sky-soft:#E2F0FF;
+  --sky:#4DA6FF; --sky-soft:#E2F0FF; --sky-text:#1c66b0;
   --sunny:#FFC83D; --purple:#9B7EDE; --purple-deep:#6b4fb0; --purple-soft:#EFE8FF;
   --good:#2BB673; --bad:#F0584F;
 }
@@ -87,7 +87,7 @@ main{flex:1}
 .progress{height:12px;background:#fff;border-radius:999px;overflow:hidden;margin-top:14px;border:2px solid #f1e6d8}
 .progress>i{display:block;height:100%;background:linear-gradient(90deg,var(--sunny),var(--ginger));border-radius:999px;transition:width .35s}
 .streak{display:inline-flex;align-items:center;gap:6px;background:#fff;border-radius:999px;padding:5px 12px;font-weight:800;
-  color:var(--ginger-deep);border:2px solid #FFE0A8;font-size:13px}
+  color:var(--ginger-text);border:2px solid #FFE0A8;font-size:13px}
 .summary{text-align:center;margin-top:10px}
 .starsRow{display:flex;justify-content:center;gap:6px;margin:14px 0}
 
@@ -104,7 +104,7 @@ main{flex:1}
 .steps li{position:relative;padding:11px 0 11px 42px;border-bottom:1px dashed #eee;font-weight:700;line-height:1.4}
 .steps li:last-child{border-bottom:none}
 .steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:8px;width:28px;height:28px;border-radius:50%;
-  background:var(--sky-soft);color:#2b80d6;display:grid;place-items:center;font-family:'Fredoka';font-weight:700;font-size:14px}
+  background:var(--sky-soft);color:var(--sky-text);display:grid;place-items:center;font-family:'Fredoka';font-weight:700;font-size:14px}
 .txtin{width:100%;border:3px solid #f0e6d9;border-radius:18px;padding:14px;font-family:'Nunito';font-weight:700;font-size:16px;
   resize:vertical;min-height:64px;color:var(--ink);margin-top:14px}
 
@@ -164,7 +164,7 @@ select.tin{appearance:none;-webkit-appearance:none}
 .seg:active{transform:translateY(2px)}
 .trackbadge{font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px}
 .trackbadge.parent{background:var(--coral-soft);color:#b3271e}
-.trackbadge.teacher{background:var(--sky-soft);color:#2b80d6}
+.trackbadge.teacher{background:var(--sky-soft);color:var(--sky-text)}
 .goalrow{padding:12px 0;border-bottom:1px dashed #eee}
 .goalrow:last-child{border-bottom:none}
 .codechip{font-family:'Fredoka';font-weight:700;letter-spacing:3px;font-size:20px;background:var(--purple-soft);color:var(--purple-deep);border-radius:12px;padding:8px 16px;display:inline-block}
