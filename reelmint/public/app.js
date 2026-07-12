@@ -20,6 +20,45 @@ let USER = null; // logged-in user (or null)
 let storyboard = null; // current storyboard
 let chatLog = [];
 
+// Brand kit (client-side, premium feature). Persisted in localStorage and
+// baked into every render when enabled.
+let BRAND = loadBrand();
+function loadBrand() {
+  try {
+    return Object.assign(
+      { on: false, handle: "@yourbrand", color: "#5b8cff", bg: "#0E1116" },
+      JSON.parse(localStorage.getItem("reelmint_brand") || "{}")
+    );
+  } catch {
+    return { on: false, handle: "@yourbrand", color: "#5b8cff", bg: "#0E1116" };
+  }
+}
+function saveBrand() {
+  localStorage.setItem("reelmint_brand", JSON.stringify(BRAND));
+}
+// Creator+ gate for premium client features.
+function isPro() {
+  return USER && (USER.plan === "creator" || USER.plan === "studio");
+}
+function requirePro(msg) {
+  if (isPro()) return true;
+  toast(msg || "That's a Creator feature — upgrade to unlock.");
+  location.hash = "#pricing";
+  return false;
+}
+
+const REDUCED_MOTION =
+  window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const EXAMPLES = [
+  "3 morning habits that doubled my focus",
+  "The $5 rule that saved me $4,000",
+  "A 10-minute dinner with 3 ingredients",
+  "How I got my first 1,000 customers with no ads",
+  "The travel hack airlines hate",
+  "A 20-minute workout that beats an hour",
+];
+
 const PALETTES = [
   { bg: "#0E1116", accent: "#5B8CFF", text: "#F4F6FB" },
   { bg: "#13070A", accent: "#FF5C7A", text: "#FFF1F3" },
@@ -46,26 +85,43 @@ async function init() {
   renderAccount();
   renderFeatures();
   renderPlans();
+  renderExamples();
   animateHero();
   wireTabs();
   wireCreate();
   wireEditor();
+  wireHooks();
+  wireSeries();
   wireImage();
   wireScan();
   wireRepurpose();
+  wireBrand();
   wireAuth();
   handleReturnFromCheckout();
+  drawScene(0, 0.5); // show the empty-state frame on load
+}
+
+// ---------- example idea chips ----------
+function renderExamples() {
+  const el = $("#exampleChips");
+  if (!el) return;
+  el.innerHTML = EXAMPLES.map((e) => `<button class="chip" type="button">${esc(e)}</button>`).join("");
+  el.querySelectorAll(".chip").forEach((c) =>
+    c.addEventListener("click", () => {
+      $("#topic").value = c.textContent;
+      $("#topic").focus();
+    })
+  );
 }
 
 // ---------- tabs ----------
+function selectTab(name) {
+  document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x.dataset.tab === name));
+  document.querySelectorAll(".panel").forEach((x) => x.classList.toggle("active", x.dataset.panel === name));
+}
 function wireTabs() {
   document.querySelectorAll(".tab").forEach((t) => {
-    t.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
-      document.querySelectorAll(".panel").forEach((x) => x.classList.remove("active"));
-      t.classList.add("active");
-      document.querySelector(`.panel[data-panel="${t.dataset.tab}"]`).classList.add("active");
-    });
+    t.addEventListener("click", () => selectTab(t.dataset.tab));
   });
 }
 
@@ -113,6 +169,34 @@ function wireCreate() {
   $("#playBtn").addEventListener("click", () => (previewing ? stopPreview() : previewPlay()));
   $("#exportBtn").addEventListener("click", exportVideo);
   $("#pngBtn").addEventListener("click", () => downloadCanvas($("#stage"), "reelmint-frame.png"));
+  $("#srtBtn").addEventListener("click", exportSRT);
+}
+
+// ---------- subtitles (.srt) — Creator+ premium export ----------
+const SCENE_SECONDS = 2.6; // must match the preview/export cadence
+function exportSRT() {
+  if (!storyboard) return toast("Generate a storyboard first.");
+  if (!requirePro("Subtitle export is a Creator feature — upgrade to unlock .srt.")) return;
+  const srt = buildSRT(storyboard.scenes, SCENE_SECONDS);
+  downloadBlob(new Blob([srt], { type: "application/x-subrip" }), "reelmint-subtitles.srt");
+  toast("Subtitles exported 📝 (.srt)");
+}
+// Build a valid SRT from the storyboard's voiceover lines (mirrors the server's
+// buildSRT so timings match the exported video).
+function buildSRT(scenes, perScene) {
+  const pad = (n, w = 2) => String(Math.floor(n)).padStart(w, "0");
+  const stamp = (sec) => {
+    const ms = Math.round((sec - Math.floor(sec)) * 1000);
+    return `${pad(sec / 3600)}:${pad((sec / 60) % 60)}:${pad(sec % 60)},${pad(ms, 3)}`;
+  };
+  return (
+    (scenes || [])
+      .map((sc, i) => {
+        const text = (sc.voiceover || sc.caption || "").trim();
+        return `${i + 1}\n${stamp(i * perScene)} --> ${stamp((i + 1) * perScene)}\n${text}`;
+      })
+      .join("\n\n") + "\n"
+  );
 }
 
 function renderStoryboard() {
@@ -137,16 +221,35 @@ function renderStoryboard() {
 }
 
 // ---------- canvas rendering ----------
+// The active palette respects the brand kit when it's on (Creator+): the brand
+// accent + background override the storyboard's per-scene palette so exports
+// look on-brand.
 function paletteFor(i) {
   const p = storyboard?.scenes?.[i]?.palette;
-  return p && p.bg ? p : PALETTES[i % PALETTES.length];
+  const base = p && p.bg ? p : PALETTES[i % PALETTES.length];
+  if (BRAND.on) return { bg: BRAND.bg, accent: BRAND.color, text: "#FFFFFF" };
+  return base;
+}
+
+// Cheap, deterministic film grain that keeps exports from looking flat. Drawn
+// as faint dotted noise seeded by scene index so it doesn't shimmer per frame.
+function drawGrain(ctx, W, H, i) {
+  ctx.save();
+  ctx.globalAlpha = 0.035;
+  ctx.fillStyle = "#ffffff";
+  let seed = (i + 1) * 9301;
+  const rand = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  for (let n = 0; n < 240; n++) ctx.fillRect(rand() * W, rand() * H, 1.4, 1.4);
+  ctx.restore();
 }
 
 function drawScene(i, progress = 0.5, canvas = $("#stage")) {
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
   const W = canvas.width, H = canvas.height;
   const scene = storyboard?.scenes?.[i];
   const pal = paletteFor(i);
+
   // gradient background
   const g = ctx.createLinearGradient(0, 0, W, H);
   g.addColorStop(0, pal.bg);
@@ -163,17 +266,30 @@ function drawScene(i, progress = 0.5, canvas = $("#stage")) {
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 
-  // accent bar
-  ctx.fillStyle = pal.accent;
-  ctx.fillRect(W * 0.12, H * 0.2, W * 0.16, 8);
+  drawGrain(ctx, W, H, i);
+
+  // cinematic vignette for depth
+  const vig = ctx.createRadialGradient(W / 2, H / 2, W * 0.35, W / 2, H / 2, W * 0.85);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(1, "rgba(0,0,0,0.4)");
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
 
   if (!scene) {
-    ctx.fillStyle = hexA(pal.text, 0.5);
+    // accent bar
+    ctx.fillStyle = pal.accent;
+    ctx.fillRect(W * 0.12, H * 0.2, W * 0.16, 8);
+    ctx.fillStyle = hexA(pal.text, 0.55);
     ctx.font = `600 ${Math.round(W * 0.05)}px sans-serif`;
     ctx.textAlign = "center";
     ctx.fillText("Generate a storyboard →", W / 2, H / 2);
+    drawBrandMark(ctx, W, H, pal);
     return;
   }
+
+  // accent bar
+  ctx.fillStyle = pal.accent;
+  ctx.fillRect(W * 0.12, H * 0.2, W * 0.16, 8);
 
   // index label
   ctx.fillStyle = pal.accent;
@@ -181,20 +297,42 @@ function drawScene(i, progress = 0.5, canvas = $("#stage")) {
   ctx.textAlign = "left";
   ctx.fillText(`SCENE ${i + 1}`, W * 0.12, H * 0.18);
 
-  // caption (wrapped, big)
+  // caption (wrapped, big, with a soft shadow so it reads on any background)
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = W * 0.02;
+  ctx.shadowOffsetY = 3;
   ctx.fillStyle = pal.text;
   ctx.textAlign = "left";
   const size = Math.round(W * 0.085);
   ctx.font = `800 ${size}px sans-serif`;
   wrapText(ctx, scene.caption || "", W * 0.12, H * 0.34, W * 0.76, size * 1.15);
+  ctx.restore();
 
   // voiceover subtitle near bottom
-  ctx.fillStyle = hexA(pal.text, 0.8);
+  ctx.fillStyle = hexA(pal.text, 0.82);
   ctx.font = `500 ${Math.round(W * 0.04)}px sans-serif`;
   wrapText(ctx, scene.voiceover || "", W * 0.12, H * 0.78, W * 0.76, W * 0.05);
 
-  // watermark (free tier)
-  if (CONFIG.watermark) {
+  // scene progress bar
+  const total = storyboard?.scenes?.length || 1;
+  const barY = H * 0.965, barX = W * 0.12, barW = W * 0.76;
+  ctx.fillStyle = hexA(pal.text, 0.18);
+  ctx.fillRect(barX, barY, barW, 4);
+  ctx.fillStyle = pal.accent;
+  ctx.fillRect(barX, barY, barW * ((i + progress) / total), 4);
+
+  drawBrandMark(ctx, W, H, pal);
+}
+
+// Brand handle (Creator+) or the free-tier watermark, bottom-right.
+function drawBrandMark(ctx, W, H, pal) {
+  if (BRAND.on && BRAND.handle) {
+    ctx.fillStyle = hexA(pal.text, 0.85);
+    ctx.font = `800 ${Math.round(W * 0.036)}px sans-serif`;
+    ctx.textAlign = "right";
+    ctx.fillText(BRAND.handle, W * 0.9, H * 0.93);
+  } else if (CONFIG.watermark) {
     ctx.fillStyle = hexA(pal.text, 0.55);
     ctx.font = `700 ${Math.round(W * 0.035)}px sans-serif`;
     ctx.textAlign = "right";
@@ -282,7 +420,7 @@ async function exportVideo() {
     rec.start();
 
     const scenes = storyboard.scenes;
-    const perScene = 2200; // ms
+    const perScene = SCENE_SECONDS * 1000; // ms — matches the .srt subtitle timing
     for (let i = 0; i < scenes.length; i++) {
       const start = performance.now();
       await new Promise((resolve) => {
@@ -369,6 +507,119 @@ function renderChat() {
     .map((m) => `<div class="msg ${m.role}">${esc(m.text)}</div>`)
     .join("");
   el.scrollTop = el.scrollHeight;
+}
+
+// ---------- Hook Lab ----------
+function wireHooks() {
+  $("#hookBtn").addEventListener("click", async () => {
+    const topic = $("#hookTopic").value.trim();
+    if (!topic) return toast("Type a topic first.");
+    const out = $("#hooksOut");
+    busy($("#hookBtn"), true, "Cooking…");
+    skeleton(out, 4, "hook-card");
+    try {
+      const res = await api("/api/hooks", { topic, count: 6 });
+      if (res.error === "out_of_credits") return outOfCredits(res);
+      if (res.user) { USER = res.user; renderAccount(); }
+      out.innerHTML = (res.variants || [])
+        .map(
+          (v) => `<div class="hook-card reveal">
+            <span class="angle">${esc(v.angle || "")}</span>
+            <p class="hook-line">${esc(v.hook || "")}</p>
+            <p class="thumb muted">🖼 ${esc(v.thumbnail || "")}</p>
+            <button class="btn btn-ghost sm" onclick="reelmintUseHook(this)">Use as video →</button>
+          </div>`
+        )
+        .join("");
+    } catch {
+      out.innerHTML = "";
+      toast("Hook Lab failed — try again.");
+    } finally {
+      busy($("#hookBtn"), false, "🧪 Generate variants");
+    }
+  });
+}
+// Send a chosen hook straight into the Create tab as a ready topic.
+window.reelmintUseHook = (btn) => {
+  const line = btn.parentElement.querySelector(".hook-line")?.textContent || "";
+  $("#topic").value = line;
+  selectTab("create");
+  $("#topic").focus();
+  toast("Loaded into Create — hit generate ✨");
+};
+
+// ---------- Series Planner ----------
+function wireSeries() {
+  $("#seriesBtn").addEventListener("click", async () => {
+    const topic = $("#seriesTopic").value.trim();
+    if (!topic) return toast("Type a niche first.");
+    const out = $("#seriesOut");
+    busy($("#seriesBtn"), true, "Planning…");
+    skeleton(out, 5, "series-row");
+    try {
+      const res = await api("/api/series", { topic, days: Number($("#seriesDays").value) });
+      if (res.error === "out_of_credits") return outOfCredits(res);
+      if (res.user) { USER = res.user; renderAccount(); }
+      out.innerHTML = (res.plan || [])
+        .map(
+          (d) => `<div class="series-row reveal">
+            <div class="day">Day ${d.day}</div>
+            <div class="series-body">
+              <div class="series-theme">${esc(d.theme || "")}</div>
+              <div>${esc(d.idea || "")}</div>
+              <div class="muted sm">📐 ${esc(d.format || "")} · 🎯 ${esc(d.cta || "")}</div>
+            </div>
+          </div>`
+        )
+        .join("");
+    } catch {
+      out.innerHTML = "";
+      toast("Series planner failed — try again.");
+    } finally {
+      busy($("#seriesBtn"), false, "🗓 Plan my series");
+    }
+  });
+}
+
+// ---------- Brand Kit ----------
+function wireBrand() {
+  $("#brandHandle").value = BRAND.handle;
+  $("#brandColor").value = BRAND.color;
+  $("#brandBg").value = BRAND.bg;
+  $("#brandOn").checked = BRAND.on;
+  const preview = () => drawScene(0, 0.5, $("#brandStage"));
+  ["input", "change"].forEach((ev) => {
+    $("#brandHandle").addEventListener(ev, () => { BRAND.handle = $("#brandHandle").value; preview(); });
+    $("#brandColor").addEventListener(ev, () => { BRAND.color = $("#brandColor").value; preview(); });
+    $("#brandBg").addEventListener(ev, () => { BRAND.bg = $("#brandBg").value; preview(); });
+    $("#brandOn").addEventListener(ev, () => {
+      if ($("#brandOn").checked && !requirePro("Brand Kit is a Creator feature — upgrade to apply it.")) {
+        $("#brandOn").checked = false;
+        return;
+      }
+      BRAND.on = $("#brandOn").checked;
+      preview();
+    });
+  });
+  $("#brandSave").addEventListener("click", () => {
+    if (BRAND.on && !isPro()) return requirePro("Brand Kit is a Creator feature — upgrade to apply it.");
+    saveBrand();
+    drawScene(0, 0.5); // refresh the main stage too
+    toast("Brand kit saved 🎨");
+  });
+  preview();
+}
+
+function outOfCredits(res) {
+  USER = res.user || USER;
+  renderAccount();
+  toast("You're out of credits this month — upgrade to keep minting.");
+  location.hash = "#pricing";
+}
+
+// Small skeleton loader for a nicer perceived-performance while AI responds.
+function skeleton(el, n, cls) {
+  el.innerHTML = Array.from({ length: n }, () => `<div class="${cls} skel"></div>`).join("");
 }
 
 // ---------- image ----------
@@ -533,13 +784,21 @@ window.reelmintCheckout = async (id) => {
 // ---------- accounts ----------
 function renderAccount() {
   const btn = $("#accountBtn");
+  const meter = $("#creditMeter");
   if (USER) {
     const c = USER.creditsLeft === "unlimited" ? "∞" : USER.creditsLeft;
     btn.textContent = `${USER.plan.toUpperCase()} · ${c} left`;
     btn.title = `${USER.email} — click to sign out`;
+    if (meter) {
+      meter.hidden = false;
+      const low = USER.creditsLeft !== "unlimited" && Number(USER.creditsLeft) <= 1;
+      meter.classList.toggle("low", low);
+      $("#creditText").textContent = `${c} credit${c === 1 ? "" : "s"} left`;
+    }
   } else {
     btn.textContent = "Sign in";
     btn.title = "Sign in or create an account";
+    if (meter) meter.hidden = true;
   }
 }
 
@@ -626,12 +885,15 @@ function handleReturnFromCheckout() {
 // ---------- hero animation ----------
 function animateHero() {
   const screen = $("#heroScreen");
-  let i = 0;
-  setInterval(() => {
+  if (!screen) return;
+  const set = (i) => {
     const p = PALETTES[i % PALETTES.length];
     screen.style.background = `linear-gradient(160deg, ${p.bg}, ${p.accent})`;
-    i++;
-  }, 1400);
+  };
+  set(0);
+  if (REDUCED_MOTION) return; // honor the user's motion preference
+  let i = 1;
+  setInterval(() => set(i++), 1600);
 }
 
 // ---------- utils ----------

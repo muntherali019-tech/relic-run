@@ -30,6 +30,9 @@ jobs:
             node --check "$f"
           done
 
+      - name: Run tests
+        run: npm test
+
       - name: Smoke-test server (demo mode)
         run: |
           PORT=3000 node server/index.js &
@@ -44,4 +47,13 @@ jobs:
           curl -fsS -X POST http://localhost:3000/api/auth/signup \
             -H 'content-type: application/json' \
             -d '{"email":"ci@example.com","password":"secret123"}' > /dev/null && echo "signup OK"
+          curl -fsS -X POST http://localhost:3000/api/script \
+            -H 'content-type: application/json' \
+            -d '{"topic":"morning focus","durationSec":30}' > /dev/null && echo "script OK"
+          curl -fsS -X POST http://localhost:3000/api/hooks \
+            -H 'content-type: application/json' \
+            -d '{"topic":"cold plunge","count":4}' > /dev/null && echo "hooks OK"
+          curl -fsS -X POST http://localhost:3000/api/series \
+            -H 'content-type: application/json' \
+            -d '{"topic":"sourdough","days":7}' > /dev/null && echo "series OK"
           kill $SRV 2>/dev/null || true

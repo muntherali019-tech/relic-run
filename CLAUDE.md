@@ -12,10 +12,10 @@ for parents/teachers. Everything is built from **one React codebase** that ships
 three targets (website, Play Store app, single-file HTML) plus a small Express backend
 that proxies AI calls and holds accounts.
 
-There is a **separate, unrelated subproject** in `reelmint/` — an AI video/image studio
-(Express + zero-build static app). It has its own `package.json`, README, CI workflow,
-and deploy config. Treat it as a distinct project; do not mix its dependencies or
-tooling with the main app.
+There is a **separate, unrelated subproject** in `reelmint/` — an AI video/image/copy
+studio (Express + zero-build static app). It has its own `package.json`, README, CI
+workflow, and deploy config. Treat it as a distinct project; do not mix its dependencies
+or tooling with the main app. See "Reelmint subproject" below before working in it.
 
 ## Tech stack
 
@@ -175,3 +175,34 @@ Match CI locally before pushing: tests green, audit clean, all three builds succ
 - Config / secrets / env → `.env.example` (documents every variable) and the
   per-mode `.env.web` / `.env.app` / `.env.onefile`.
 - Current optimization status and remaining follow-ups → `TODO.md`.
+
+## Reelmint subproject (`reelmint/`)
+
+A distinct product — an AI studio that mints short/long videos, images and copy from
+one prompt — **not** part of Whisker Academy. It's a single Express service serving a
+**zero-build** static app (plain HTML/CSS/JS in `public/`), Node 20, ESM. Uses
+`@anthropic-ai/sdk`, `express`, and optional `pg`; run/build/test only from inside
+`reelmint/`.
+
+- **Commands:** `cd reelmint && npm install && npm start` (`:3000`); `npm test`
+  (`node:test`, no key needed). No build step, no bundler.
+- **Layout:** `server/index.js` (routes), `server/ai.js` (Anthropic + per-feature model
+  routing + demo fallback), `server/content.js` (believable demo library + pure helpers:
+  storyboard decoration, SRT builder — **unit-tested**), `server/auth.js` (accounts,
+  tokens, monthly credits), `server/billing.js` (Stripe via REST, no SDK),
+  `server/images.js` (photoreal providers + Smart-Slide fallback), `server/store.js`
+  (Postgres or JSON file behind one async API). Front-end: `public/{index.html,app.js,styles.css}`.
+- **Studio tools (7):** Create (storyboard→video), AI Editor (voice/text), Hook Lab
+  (A/B hook+thumbnail variants), Series Planner (multi-day calendar), Image (Smart
+  Slides / photoreal), Scan (vision), Repurpose (transcript→clips). Plus Brand Kit and
+  `.srt` subtitle export. Premium tools are credit-gated server-side (`spendCredit`) or
+  plan-gated client-side (`isPro()` = Creator/Studio).
+- **Model routing:** quality model `AI_MODEL` (default `claude-opus-4-8`) for
+  storyboards/edits/vision/image specs; fast model `AI_MODEL_FAST` (default
+  `claude-haiku-4-5`) for captions/hooks. Feature→tier map lives in `server/ai.js`.
+- **Demo mode** (no `ANTHROPIC_API_KEY`): every route returns hand-authored, topic-aware
+  sample content from `server/content.js` — never lorem. Keep it that way when adding
+  features so the studio always demos convincingly.
+- **Conventions:** no key ever reaches the browser; keep the app zero-build (no bundler,
+  inline nothing exotic); put pure/testable logic in `server/content.js`; media rendering
+  stays client-side (Canvas + MediaRecorder). Its CI is `.github/workflows/ci.yml`.

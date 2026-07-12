@@ -20,6 +20,15 @@ import {
 import { stripeEnabled, createCheckout, handleWebhook } from "./billing.js";
 import { generateImage, imageProvider } from "./images.js";
 import { initStore, backend } from "./store.js";
+import {
+  decorateStoryboard,
+  demoStoryboard,
+  demoHooks,
+  demoSeries,
+  demoClips,
+  demoCaptions,
+  demoDesign,
+} from "./content.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
@@ -47,14 +56,6 @@ app.use(attachUser);
 app.use(express.static(PUBLIC_DIR));
 
 const NO_WATERMARK = process.env.REELMINT_NO_WATERMARK === "1";
-
-const PALETTES = [
-  { bg: "#0E1116", accent: "#5B8CFF", text: "#F4F6FB", muted: "#9AA4B2" },
-  { bg: "#13070A", accent: "#FF5C7A", text: "#FFF1F3", muted: "#D9A6B0" },
-  { bg: "#06120E", accent: "#36E0A0", text: "#EAFBF4", muted: "#9CC8B8" },
-  { bg: "#120E06", accent: "#FFB23E", text: "#FFF6E8", muted: "#D8BD98" },
-  { bg: "#0B0716", accent: "#A66BFF", text: "#F3EDFF", muted: "#B5A6D4" },
-];
 
 // ---------- meta ----------
 app.get("/api/health", (_req, res) => res.json({ ok: true, ...aiStatus() }));
@@ -133,6 +134,7 @@ app.post("/api/script", wrap(async (req, res) => {
   let data;
   try {
     data = await generateJSON({
+      feature: "script",
       system,
       content: `Topic: ${topic}
 Platform: ${platform}
@@ -165,6 +167,7 @@ app.post("/api/assistant", wrap(async (req, res) => {
     "Apply the change and return the FULL updated storyboard plus a one-sentence friendly reply describing what you changed.";
 
   const data = await generateJSON({
+    feature: "assistant",
     system,
     content: `Current storyboard JSON:
 ${JSON.stringify(storyboard) || "none yet"}
@@ -197,6 +200,7 @@ app.post("/api/image", wrap(async (req, res) => {
 
   // Otherwise generate a "Smart Slide" design spec the browser renders to PNG.
   const design = await generateJSON({
+    feature: "image",
     system:
       "You are Reelmint's graphic designer. Turn the prompt into a striking poster design spec. " +
       "Pick a cohesive palette and write a short punchy headline + sub-line.",
@@ -204,12 +208,7 @@ app.post("/api/image", wrap(async (req, res) => {
 Style: ${style}
 Return JSON: { "headline": string, "subline": string, "palette": {"bg": string, "accent": string, "text": string}, "layout": "center" | "lower" | "split" }`,
     maxTokens: 700,
-    demo: {
-      headline: prompt.slice(0, 40),
-      subline: "Made with Reelmint",
-      palette: PALETTES[0],
-      layout: "center",
-    },
+    demo: demoDesign(prompt),
   });
   res.json({ type: "design", design });
 }));
@@ -222,6 +221,11 @@ app.post("/api/scan", async (req, res) => {
     instruction = "Extract the text and rewrite it as 3 short social captions.",
   } = req.body || {};
   if (!base64) return res.status(400).json({ error: "base64 image is required" });
+  if (!aiEnabled) {
+    // Believable demo output instead of a stub, so the flow reads like the
+    // real thing without a key.
+    return res.json({ text: demoCaptions("what you uploaded", "instagram", 3) });
+  }
   try {
     const text = await visionExtract({ base64, mediaType, instruction });
     res.json({ text });
@@ -236,6 +240,7 @@ app.post("/api/repurpose", wrap(async (req, res) => {
   if (!transcript.trim())
     return res.status(400).json({ error: "transcript is required" });
   const data = await generateJSON({
+    feature: "repurpose",
     system:
       "You are Reelmint's clip finder. From a long transcript, find the most viral short-clip moments.",
     content: `Transcript:
@@ -243,22 +248,83 @@ ${transcript.slice(0, 12000)}
 
 Return JSON: { "clips": [{ "title": string, "hook": string, "quote": string, "hashtags": [string] }] } with ${count} clips.`,
     maxTokens: 2500,
-    demo: { clips: [{ title: "Demo clip", hook: "Add your API key", quote: transcript.slice(0, 80), hashtags: ["#reelmint"] }] },
+    demo: demoClips(transcript, count),
   });
   res.json(data);
 }));
 
-// ---------- copy / captions ----------
+// ---------- copy / captions (fast model) ----------
 app.post("/api/captions", wrap(async (req, res) => {
   const { topic = "", platform = "instagram", count = 6 } = req.body || {};
   if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
+  if (!aiEnabled) return res.json({ text: demoCaptions(topic, platform, count) });
   const text = await generateText({
+    feature: "captions",
     system:
       "You are Reelmint's copywriter. Write scroll-stopping captions with relevant hashtags and a strong CTA.",
     content: `Write ${count} ${platform} captions about: ${topic}. Number them.`,
     maxTokens: 1200,
   });
   res.json({ text });
+}));
+
+// ---------- Hook Lab — A/B hook & thumbnail variants (costs 1 credit) ----------
+app.post("/api/hooks", wrap(async (req, res) => {
+  const { topic = "", count = 6 } = req.body || {};
+  if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
+
+  const credit = await spendCredit(req.user);
+  if (!credit.ok)
+    return res.status(402).json({ error: "out_of_credits", user: publicUser(req.user) });
+
+  let data;
+  try {
+    data = await generateJSON({
+      feature: "hooks",
+      system:
+        "You are Reelmint's Hook Lab. Given a topic, write distinct scroll-stopping hook variants for A/B testing. " +
+        "Each variant needs a different psychological angle, a one-line spoken hook, and a short thumbnail concept.",
+      content: `Topic: ${topic}
+Give exactly ${Math.max(3, Math.min(10, count))} variants.
+Return JSON: { "topic": string, "variants": [{ "angle": string, "hook": string, "thumbnail": string }] }`,
+      maxTokens: 1400,
+      demo: demoHooks(topic, count),
+    });
+  } catch (e) {
+    await refundCredit(req.user);
+    return res.status(502).json({ error: "generation_failed", user: publicUser(req.user) });
+  }
+  res.json({ ...data, user: publicUser(req.user) });
+}));
+
+// ---------- Series Planner — one idea → a multi-day content calendar (costs 1 credit) ----------
+app.post("/api/series", wrap(async (req, res) => {
+  const { topic = "", days = 7 } = req.body || {};
+  if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
+  const n = Math.max(3, Math.min(14, Number(days) || 7));
+
+  const credit = await spendCredit(req.user);
+  if (!credit.ok)
+    return res.status(402).json({ error: "out_of_credits", user: publicUser(req.user) });
+
+  let data;
+  try {
+    data = await generateJSON({
+      feature: "series",
+      system:
+        "You are Reelmint's content strategist. Turn one topic into a cohesive multi-day short-form posting plan " +
+        "that builds momentum — vary the theme, format and call-to-action each day so a creator never runs dry.",
+      content: `Topic: ${topic}
+Plan exactly ${n} days.
+Return JSON: { "topic": string, "days": number, "plan": [{ "day": number, "theme": string, "idea": string, "format": string, "cta": string }] }`,
+      maxTokens: 2000,
+      demo: demoSeries(topic, n),
+    });
+  } catch (e) {
+    await refundCredit(req.user);
+    return res.status(502).json({ error: "generation_failed", user: publicUser(req.user) });
+  }
+  res.json({ ...data, user: publicUser(req.user) });
 }));
 
 // SPA fallback.
@@ -278,7 +344,7 @@ const PLANS = [
     name: "Free",
     price: "$0",
     period: "forever",
-    credits: "5 videos / mo",
+    credits: "5 generations / mo",
     features: ["720p exports", "Reelmint watermark", "AI editor (basic)", "Smart Slide images"],
     cta: "Start free",
   },
@@ -287,8 +353,15 @@ const PLANS = [
     name: "Creator",
     price: "$19",
     period: "/mo",
-    credits: "100 videos / mo",
-    features: ["1080p exports", "No watermark", "Voice AI editor", "Brand kit", "Scan & repurpose"],
+    credits: "100 generations / mo",
+    features: [
+      "1080p exports · no watermark",
+      "Voice AI editor",
+      "Brand Kit (colors + handle)",
+      "Hook Lab A/B variants",
+      ".SRT subtitle export",
+      "Scan & repurpose",
+    ],
     cta: "Go Creator",
     popular: true,
   },
@@ -297,42 +370,17 @@ const PLANS = [
     name: "Studio",
     price: "$49",
     period: "/mo",
-    credits: "Unlimited videos",
-    features: ["4K-ready exports", "Team seats", "API access", "Priority rendering", "Custom voices"],
+    credits: "Unlimited generations",
+    features: [
+      "4K-ready exports",
+      "Series Planner (content calendar)",
+      "Team seats · API access",
+      "Priority rendering",
+      "Custom voices",
+    ],
     cta: "Go Studio",
   },
 ];
-
-function decorateStoryboard(sb) {
-  if (!sb || !Array.isArray(sb.scenes)) return demoStoryboard("your idea", 4);
-  sb.scenes = sb.scenes.map((s, i) => ({
-    caption: s.caption || "",
-    voiceover: s.voiceover || s.caption || "",
-    imagePrompt: s.imagePrompt || s.caption || sb.title || "",
-    palette: PALETTES[i % PALETTES.length],
-  }));
-  sb.hashtags = Array.isArray(sb.hashtags) ? sb.hashtags : [];
-  return sb;
-}
-
-function demoStoryboard(topic, sceneCount) {
-  const t = (topic || "your big idea").trim();
-  const scenes = Array.from({ length: sceneCount }, (_, i) => ({
-    caption: i === 0 ? `Stop scrolling 👀` : `Point ${i}: why ${t} wins`,
-    voiceover:
-      i === 0
-        ? `Here's what nobody tells you about ${t}.`
-        : `Reason number ${i}: ${t} changes everything once you try it.`,
-    imagePrompt: `cinematic poster about ${t}, scene ${i + 1}`,
-  }));
-  return {
-    title: `${t} in ${sceneCount * 6}s`,
-    hook: `The truth about ${t}`,
-    scenes,
-    hashtags: ["#reelmint", "#ai", "#" + t.replace(/\s+/g, "").toLowerCase()],
-    description: `A short video about ${t}, minted with Reelmint.`,
-  };
-}
 
 const PORT = process.env.PORT || 3000;
 initStore()
