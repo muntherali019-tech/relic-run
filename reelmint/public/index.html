@@ -22,6 +22,7 @@
         <a href="#features">Features</a>
         <a href="#pricing">Pricing</a>
         <a class="btn btn-ghost" id="statusPill" href="#studio">●</a>
+        <span class="credit-meter" id="creditMeter" hidden><span class="dot"></span><span id="creditText">—</span></span>
         <button class="btn btn-ghost" id="accountBtn">Sign in</button>
         <a class="btn btn-primary" href="#studio">Open studio</a>
       </nav>
@@ -59,9 +60,12 @@
           <div class="tabs" id="tabs">
             <button class="tab active" data-tab="create">🎬 Create</button>
             <button class="tab" data-tab="editor">🪄 AI Editor</button>
+            <button class="tab" data-tab="hooks">🧪 Hook Lab</button>
+            <button class="tab" data-tab="series">🗓 Series</button>
             <button class="tab" data-tab="image">🖼 Image</button>
             <button class="tab" data-tab="scan">📷 Scan</button>
             <button class="tab" data-tab="repurpose">✂️ Repurpose</button>
+            <button class="tab" data-tab="brand">🎨 Brand Kit</button>
           </div>
         </div>
 
@@ -73,6 +77,7 @@
                 <span>Your idea</span>
                 <textarea id="topic" rows="3" placeholder="e.g. 3 morning habits that doubled my focus"></textarea>
               </label>
+              <div class="chips" id="exampleChips" aria-label="Example ideas"></div>
               <div class="row">
                 <label class="field">
                   <span>Platform</span>
@@ -111,6 +116,7 @@
                   <button class="btn btn-ghost" id="playBtn">▶ Preview</button>
                   <button class="btn btn-ghost" id="exportBtn">⬇ Export video</button>
                   <button class="btn btn-ghost" id="pngBtn">⬇ Frame PNG</button>
+                  <button class="btn btn-ghost" id="srtBtn" title="Download timed captions">⬇ Subtitles .srt</button>
                 </div>
               </div>
               <div class="storyboard" id="storyboard"></div>
@@ -128,6 +134,36 @@
               <input id="instruction" placeholder="“Make scene 2 funnier and add a CTA at the end”" />
               <button class="btn btn-primary" id="sendBtn">Send</button>
             </div>
+          </div>
+        </div>
+
+        <!-- HOOK LAB -->
+        <div class="panel" data-panel="hooks">
+          <div class="card">
+            <p class="muted">Generate a spread of scroll-stopping hook + thumbnail variants to A/B test before you film. <span class="pro-tag">Creator</span></p>
+            <div class="row">
+              <input id="hookTopic" placeholder="Topic — e.g. cold plunge benefits" />
+              <button class="btn btn-primary" id="hookBtn">🧪 Generate variants</button>
+            </div>
+            <div class="hooks-grid" id="hooksOut"></div>
+          </div>
+        </div>
+
+        <!-- SERIES PLANNER -->
+        <div class="panel" data-panel="series">
+          <div class="card">
+            <p class="muted">Turn one idea into a full multi-day posting calendar so you never run out of content. <span class="pro-tag">Studio</span></p>
+            <div class="row">
+              <input id="seriesTopic" placeholder="Niche — e.g. beginner sourdough" />
+              <label class="field inline">
+                <span>Days</span>
+                <select id="seriesDays">
+                  <option>5</option><option selected>7</option><option>10</option><option>14</option>
+                </select>
+              </label>
+              <button class="btn btn-primary" id="seriesBtn">🗓 Plan my series</button>
+            </div>
+            <div class="series-list" id="seriesOut"></div>
           </div>
         </div>
 
@@ -177,6 +213,42 @@
             <textarea id="transcript" rows="6" placeholder="Paste your transcript…"></textarea>
             <button class="btn btn-primary" id="repBtn">✂️ Find viral clips</button>
             <div class="clips" id="clips"></div>
+          </div>
+        </div>
+
+        <!-- BRAND KIT -->
+        <div class="panel" data-panel="brand">
+          <div class="panel-grid">
+            <div class="card">
+              <p class="muted">Lock your look. Your brand color and handle are baked into every render and replace the watermark. <span class="pro-tag">Creator</span></p>
+              <label class="field">
+                <span>Brand handle</span>
+                <input id="brandHandle" placeholder="@yourbrand" maxlength="24" />
+              </label>
+              <label class="field">
+                <span>Accent color</span>
+                <input id="brandColor" type="color" value="#5b8cff" />
+              </label>
+              <label class="field">
+                <span>Background tone</span>
+                <select id="brandBg">
+                  <option value="#0E1116">Midnight</option>
+                  <option value="#13070A">Crimson</option>
+                  <option value="#06120E">Forest</option>
+                  <option value="#120E06">Amber</option>
+                  <option value="#0B0716">Violet</option>
+                </select>
+              </label>
+              <label class="switch-row">
+                <input type="checkbox" id="brandOn" />
+                <span>Apply brand kit to renders</span>
+              </label>
+              <button class="btn btn-primary btn-block" id="brandSave">Save brand kit</button>
+            </div>
+            <div class="preview card center">
+              <canvas id="brandStage" width="540" height="960"></canvas>
+              <p class="hint">Live preview — this is how your scenes will look.</p>
+            </div>
           </div>
         </div>
       </section>

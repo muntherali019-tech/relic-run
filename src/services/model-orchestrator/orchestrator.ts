@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ModelOrchestrator, ModelResponse } from './types';
+import type { ModelOrchestrator, ModelResponse } from './types.ts';
 
 export class SDXLOrchestrator implements ModelOrchestrator {
   apiKey?: string;
