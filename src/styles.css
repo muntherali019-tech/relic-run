@@ -8,6 +8,7 @@
   --sky:#4DA6FF; --sky-soft:#E2F0FF; --sky-text:#1c66b0;
   --sunny:#FFC83D; --purple:#9B7EDE; --purple-deep:#6b4fb0; --purple-soft:#EFE8FF;
   --good:#2BB673; --bad:#F0584F;
+  --green-soft:#E3F6EA;
 }
 *{box-sizing:border-box}
 html,body,#root{height:100%;margin:0}
@@ -371,3 +372,26 @@ select.tin{appearance:none;-webkit-appearance:none}
 
 /* Programmatic focus target for screen changes (no visible ring on mouse use) */
 main:focus{outline:none}
+
+/* ============================================================
+   Premium polish — gentle hover/entrance motion (v2)
+   All effects respect prefers-reduced-motion.
+   ============================================================ */
+.toolcard{transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}
+.toolcard:hover{transform:translateY(-3px);box-shadow:0 16px 34px rgba(208,150,90,.26);border-color:#fff}
+.toolcard:active{transform:translateY(0)}
+.subj{transition:transform .14s ease, box-shadow .16s ease}
+.subj:hover{transform:translateY(-2px) scale(1.02)}
+.topic{transition:transform .14s ease, box-shadow .16s ease, background .16s ease}
+.topic:hover{transform:translateX(3px)}
+.card{animation:cardIn .34s ease both}
+@keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.motiv{background-size:200% 100%;animation:motivSheen 7s linear infinite}
+@keyframes motivSheen{to{background-position:200% center}}
+.btn-primary,.bigbtn,.playbtn{transition:transform .1s ease, filter .16s ease}
+.btn-primary:active,.bigbtn:active,.playbtn:active{transform:translateY(1px)}
+
+@media (prefers-reduced-motion: reduce){
+  .toolcard,.subj,.topic,.card{transition:none;animation:none}
+  .motiv{animation:none}
+}

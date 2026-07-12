@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import { load, save, newId, newCode, overview, weakest, initStore } from "./store.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "./auth.js";
 import { sendEmail } from "./email.js";
+import { demoClaudeResponse } from "./demo.js";
+import { PLAN_CATALOG, getPlan, tracksForPlan, stripePriceFor, publicCatalog } from "./plans.js";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -60,26 +62,34 @@ const ELEVEN_VOICE = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM"; 
 const ELEVEN_MODEL = process.env.ELEVENLABS_MODEL || "eleven_multilingual_v2";
 const DEFAULT_STATE = () => ({ subs: { junior: false, adult: false }, stars: 0, history: [], stats: {} });
 
-app.get("/api/health", (_req, res) => res.json({ ok: true, hasKey: Boolean(KEY) }));
+app.get("/api/health", (_req, res) => res.json({ ok: true, hasKey: Boolean(KEY), demo: !KEY }));
+
+// Public plan catalog (Junior/Higher + Annual, Family and School plans).
+app.get("/api/plans", (_req, res) => res.json({ plans: publicCatalog() }));
 
 /* ---------- AI proxy (keeps the API key server-side) ---------- */
 // Per-feature model routing. The client sends a `feature` hint (questions,
 // mark, solve, chat, translate, …); MODEL_<FEATURE> env vars override the
 // default per feature — e.g. MODEL_TRANSLATE=claude-haiku-4-5 routes UI
 // translation to the cheaper model without touching tutoring quality.
-const MODEL_DEFAULT = process.env.MODEL_DEFAULT || "claude-sonnet-4-6";
+// Best-in-class default: Sonnet 5 for tutoring/marking quality. Route cheap,
+// high-volume features (translate, voice, note) to Haiku via MODEL_<FEATURE>
+// env vars, or heavy vision (mark, solve) to Opus — without touching the rest.
+const MODEL_DEFAULT = process.env.MODEL_DEFAULT || "claude-sonnet-5";
 const modelFor = (feature) => process.env[`MODEL_${String(feature || "").toUpperCase().replace(/[^A-Z0-9]/g, "")}`] || MODEL_DEFAULT;
 // Only models we intend to pay for; a hijacked client can't switch to a pricier
 // one. Env-routed models are trusted automatically.
 const ALLOWED_MODELS = [...new Set([
-  ...(process.env.ALLOWED_MODELS || "claude-sonnet-4-6,claude-haiku-4-5").split(",").map((s) => s.trim()),
+  ...(process.env.ALLOWED_MODELS || "claude-sonnet-5,claude-haiku-4-5-20251001,claude-opus-4-8").split(",").map((s) => s.trim()),
   MODEL_DEFAULT,
   ...Object.entries(process.env).filter(([k]) => k.startsWith("MODEL_")).map(([, v]) => String(v).trim()),
 ])].filter(Boolean);
 const MAX_TOKENS_CAP = 4000;
 
 app.post("/api/claude", aiLimit, async (req, res) => {
-  if (!KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY. Copy .env.example to .env and add your key." });
+  // No key? Serve believable, feature-shaped demo content so the whole app is
+  // clickable end-to-end. Add ANTHROPIC_API_KEY to switch to live generation.
+  if (!KEY) return res.json(demoClaudeResponse(req.body || {}));
   try {
     let { system, content, max_tokens = 1500, model, feature } = req.body || {};
     if (!model) model = modelFor(feature);
@@ -485,7 +495,6 @@ app.post("/api/admin/report", async (req, res) => {
 /* ---------- Stripe (web build payments) ---------- */
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
-const STRIPE_PRICES = { junior: process.env.STRIPE_PRICE_JUNIOR || "", adult: process.env.STRIPE_PRICE_ADULT || "" };
 const SITE_URL = process.env.PUBLIC_WEB_URL || "http://localhost:5173";
 
 async function stripeForm(path, params) {
@@ -503,8 +512,10 @@ async function stripeForm(path, params) {
 // customer's local currency (set per-currency prices in Stripe to control this).
 app.post("/api/stripe/checkout", async (req, res) => {
   if (!STRIPE_SECRET) return res.status(503).json({ error: "Stripe isn't configured on the server yet." });
-  const plan = req.body?.plan; const price = STRIPE_PRICES[plan];
-  if (!price) return res.status(400).json({ error: "Unknown plan or missing Stripe price ID." });
+  const plan = req.body?.plan;
+  if (!getPlan(plan)) return res.status(400).json({ error: "Unknown plan." });
+  const price = stripePriceFor(plan);
+  if (!price) return res.status(400).json({ error: "That plan isn't set up for purchase yet (missing Stripe price ID)." });
   const db = load(); const user = userFromReq(db, req); // optional: links the subscription to the account
   try {
     const session = await stripeForm("checkout/sessions", {
@@ -545,12 +556,19 @@ function verifyStripeSig(rawBuf, sigHeader) {
 }
 const userById = (db, uid) => (uid && db.users[uid]) ? db.users[uid] : null;
 const userByCustomer = (db, customer) => Object.values(db.users).find((u) => u.stripeCustomerId === customer) || null;
-function setUserPlan(user, plan, on) { user.subs = user.subs || { junior: false, adult: false }; if (plan === "junior" || plan === "adult") user.subs[plan] = !!on; }
+// Apply a plan to a user by unlocking (or locking) the tracks it grants. Family
+// and School unlock both tracks; annual plans map to their monthly track.
+function setUserPlan(user, plan, on) {
+  user.subs = user.subs || { junior: false, adult: false };
+  const tracks = tracksForPlan(plan);
+  if (tracks.junior) user.subs.junior = !!on;
+  if (tracks.adult) user.subs.adult = !!on;
+}
 function planFromSubscription(sub) {
   const priceId = sub?.items?.data?.[0]?.price?.id;
-  if (priceId && priceId === STRIPE_PRICES.adult) return "adult";
-  if (priceId && priceId === STRIPE_PRICES.junior) return "junior";
-  return undefined;
+  if (!priceId) return undefined;
+  const match = PLAN_CATALOG.find((p) => stripePriceFor(p.id) && stripePriceFor(p.id) === priceId);
+  return match?.id;
 }
 function handleStripeEvent(rawBuf, sig, res) {
   if (!verifyStripeSig(rawBuf, sig)) return res.status(400).json({ error: "Invalid signature." });
