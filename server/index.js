@@ -545,11 +545,20 @@ app.post("/api/stripe/portal", async (req, res) => {
 });
 
 /* ---------- Stripe webhook handling (verifies signature, then grants/revokes) ---------- */
-function verifyStripeSig(rawBuf, sigHeader) {
-  if (!STRIPE_WEBHOOK_SECRET) return true;                 // not enforced until you set the secret (dev/local)
+// Stripe signs `t.payload`. `t` must also be checked for freshness, or a captured
+// delivery stays replayable forever. 300s matches Stripe's own default tolerance.
+const STRIPE_WEBHOOK_TOLERANCE = Number(process.env.STRIPE_WEBHOOK_TOLERANCE || 300);
+
+function verifyStripeSig(rawBuf, sigHeader, now = Date.now()) {
+  // Fail closed. This used to return true when no secret was configured, which
+  // meant any unsigned POST to /api/stripe/webhook was processed — enough to
+  // grant yourself a paid plan by naming your own uid in the payload.
+  if (!STRIPE_WEBHOOK_SECRET) return false;
   if (!sigHeader) return false;
   const parts = Object.fromEntries(String(sigHeader).split(",").map((kv) => kv.split("=")));
   if (!parts.t || !parts.v1) return false;
+  const ts = Number(parts.t);
+  if (!Number.isFinite(ts) || Math.abs(now / 1000 - ts) > STRIPE_WEBHOOK_TOLERANCE) return false;
   const signed = `${parts.t}.${rawBuf.toString("utf8")}`;
   const expected = crypto.createHmac("sha256", STRIPE_WEBHOOK_SECRET).update(signed).digest("hex");
   try { return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1)); } catch { return false; }

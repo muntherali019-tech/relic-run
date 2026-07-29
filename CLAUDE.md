@@ -60,7 +60,8 @@ server/
   auth.js                 Password hashing + signed-token auth (built-in dev auth).
   store.js                Persistence backend (file or Postgres); routes use load()/save().
   email.js                Weekly parent emails (console/resend/sendgrid providers).
-test/                     node:test suites: bank.test.js, progress.test.js, server.test.js
+test/                     node:test suites: bank, progress, plans, worksheet,
+                          server (auth/access control), routes (everything else)
 reelmint/                 Separate AI studio subproject (own package.json + CI).
 .claude/
   commands/               15 optimization prompts, runnable as slash commands.
@@ -139,9 +140,21 @@ everything else is server-only.
 
 ## Testing & verification
 
-- `npm test` runs three suites: server API over real HTTP (auth, access control,
-  cascade deletes, rate limiting), progress/streak logic, and offline-bank integrity
-  (every bank has enough non-repeating questions). All must pass.
+- `npm test` runs six suites over real HTTP and pure logic, all keyless: `server`
+  (auth, child access control, cascade deletes, rate limiting), `routes`
+  (goals, classes, leaderboard, referrals, prefs, TTS, cron, admin, Stripe
+  portal/webhook), `progress` (streaks/stars), `bank` (offline-bank integrity),
+  `plans` and `worksheet`. All must pass. **Every `/api` route has coverage —
+  keep it that way when adding one.**
+- `server.test.js` and `routes.test.js` each spawn **their own** server on their
+  own port and temp store. That is deliberate: the auth endpoints are
+  rate-limited per IP+path, so sharing a server would make the files interfere
+  and the request budgets are counted per file.
+- **The Stripe webhook must fail closed.** `verifyStripeSig` returns false when
+  `STRIPE_WEBHOOK_SECRET` is unset (it used to return *true*, so any unsigned
+  POST was processed — enough to grant yourself a plan by naming your own uid),
+  and rejects signatures outside `STRIPE_WEBHOOK_TOLERANCE` (default 300s).
+  `routes.test.js` asserts both; don't relax them for local convenience.
 - For UI/behavior changes, verify in a headless browser (the app must render, navigate,
   and complete an offline quiz round) — not just tests.
 - The Postgres path can only be syntax-checked in this sandbox (no Postgres/Docker);
