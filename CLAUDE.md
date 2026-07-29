@@ -116,9 +116,13 @@ everything else is server-only.
   Express proxy (`/api/claude`, `/api/tts`). The browser calls `src/lib/api.js`, which
   hits `/api` (proxied in dev; `VITE_API_BASE` in prod).
 - **No new dependencies without good reason.** The project deliberately avoids extra
-  deps (tests use `node:test`, the rate limiter and store are hand-rolled). `npm audit`
-  must stay at 0 vulnerabilities; CI fails on high/critical. `pg` and Capacitor
-  notification packages are intentionally *optional*.
+  deps (tests use `node:test`, the rate limiter and store are hand-rolled).
+  **Runtime dependencies must stay at 0 vulnerabilities** — CI fails on
+  high/critical for `npm audit --omit=dev`, and that gate is the one to keep
+  green. The full audit runs report-only because the remaining high advisories
+  are all transitive under `@capacitor/cli` (Android build tooling) and need a
+  Capacitor major bump to clear. `pg` and the Capacitor notification packages
+  are intentionally *optional*.
 - **`App.jsx` is the shell.** Add new UI as a screen component under
   `src/components/screens/` and wire it through the shell — don't grow `App.jsx` back
   into a monolith. Heavy/rare screens are `lazy()`-loaded; wrap risky screens in an
@@ -162,7 +166,7 @@ everything else is server-only.
 
 ## CI
 
-- `.github/workflows/main-ci.yml` (this app): `npm ci` → `npm audit --audit-level=high`
+- `.github/workflows/main-ci.yml` (this app): `npm ci` → `npm audit --omit=dev --audit-level=high`
   → `npm test` → `node --check server/*.js` → build web/app/onefile → API smoke test.
 - `.github/workflows/ci.yml` (reelmint, scoped to `reelmint/`).
 
