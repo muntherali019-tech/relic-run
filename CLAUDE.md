@@ -60,7 +60,8 @@ server/
   auth.js                 Password hashing + signed-token auth (built-in dev auth).
   store.js                Persistence backend (file or Postgres); routes use load()/save().
   email.js                Weekly parent emails (console/resend/sendgrid providers).
-test/                     node:test suites: bank.test.js, progress.test.js, server.test.js
+test/                     node:test suites: bank, progress, plans, worksheet,
+                          server (auth/access control), routes (everything else)
 reelmint/                 Separate AI studio subproject (own package.json + CI).
 .claude/
   commands/               15 optimization prompts, runnable as slash commands.
@@ -115,9 +116,13 @@ everything else is server-only.
   Express proxy (`/api/claude`, `/api/tts`). The browser calls `src/lib/api.js`, which
   hits `/api` (proxied in dev; `VITE_API_BASE` in prod).
 - **No new dependencies without good reason.** The project deliberately avoids extra
-  deps (tests use `node:test`, the rate limiter and store are hand-rolled). `npm audit`
-  must stay at 0 vulnerabilities; CI fails on high/critical. `pg` and Capacitor
-  notification packages are intentionally *optional*.
+  deps (tests use `node:test`, the rate limiter and store are hand-rolled).
+  **Runtime dependencies must stay at 0 vulnerabilities** — CI fails on
+  high/critical for `npm audit --omit=dev`, and that gate is the one to keep
+  green. The full audit runs report-only because the remaining high advisories
+  are all transitive under `@capacitor/cli` (Android build tooling) and need a
+  Capacitor major bump to clear. `pg` and the Capacitor notification packages
+  are intentionally *optional*.
 - **`App.jsx` is the shell.** Add new UI as a screen component under
   `src/components/screens/` and wire it through the shell — don't grow `App.jsx` back
   into a monolith. Heavy/rare screens are `lazy()`-loaded; wrap risky screens in an
@@ -139,9 +144,21 @@ everything else is server-only.
 
 ## Testing & verification
 
-- `npm test` runs three suites: server API over real HTTP (auth, access control,
-  cascade deletes, rate limiting), progress/streak logic, and offline-bank integrity
-  (every bank has enough non-repeating questions). All must pass.
+- `npm test` runs six suites over real HTTP and pure logic, all keyless: `server`
+  (auth, child access control, cascade deletes, rate limiting), `routes`
+  (goals, classes, leaderboard, referrals, prefs, TTS, cron, admin, Stripe
+  portal/webhook), `progress` (streaks/stars), `bank` (offline-bank integrity),
+  `plans` and `worksheet`. All must pass. **Every `/api` route has coverage —
+  keep it that way when adding one.**
+- `server.test.js` and `routes.test.js` each spawn **their own** server on their
+  own port and temp store. That is deliberate: the auth endpoints are
+  rate-limited per IP+path, so sharing a server would make the files interfere
+  and the request budgets are counted per file.
+- **The Stripe webhook must fail closed.** `verifyStripeSig` returns false when
+  `STRIPE_WEBHOOK_SECRET` is unset (it used to return *true*, so any unsigned
+  POST was processed — enough to grant yourself a plan by naming your own uid),
+  and rejects signatures outside `STRIPE_WEBHOOK_TOLERANCE` (default 300s).
+  `routes.test.js` asserts both; don't relax them for local convenience.
 - For UI/behavior changes, verify in a headless browser (the app must render, navigate,
   and complete an offline quiz round) — not just tests.
 - The Postgres path can only be syntax-checked in this sandbox (no Postgres/Docker);
@@ -149,7 +166,7 @@ everything else is server-only.
 
 ## CI
 
-- `.github/workflows/main-ci.yml` (this app): `npm ci` → `npm audit --audit-level=high`
+- `.github/workflows/main-ci.yml` (this app): `npm ci` → `npm audit --omit=dev --audit-level=high`
   → `npm test` → `node --check server/*.js` → build web/app/onefile → API smoke test.
 - `.github/workflows/ci.yml` (reelmint, scoped to `reelmint/`).
 
