@@ -25,5 +25,15 @@ export default defineConfig(async ({ mode }) => {
     plugins,
     build: { outDir, emptyOutDir: true },
     server: { port: 5173, proxy: { "/api": "http://localhost:8787" } },
+    // Vitest owns the src/ specs only — client code needs a DOM (localStorage,
+    // window). The suites in test/ and tests/ are node:test and are run
+    // separately by `node --test`; keep this include narrow so the two runners
+    // never pick up each other's files.
+    test: {
+      globals: true,
+      environment: "jsdom",
+      setupFiles: ["./vitest.setup.js"],
+      include: ["src/**/*.{test,spec}.{js,jsx}"],
+    },
   };
 });
