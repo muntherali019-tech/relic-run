@@ -156,8 +156,10 @@ everything else is server-only.
   logic: `server` (auth, child access control, cascade deletes, rate limiting),
   `routes` (goals, classes, leaderboard, referrals, prefs, TTS, cron, admin,
   Stripe portal/webhook), `proxy` (`TRUST_PROXY` and rate-limit bucketing),
-  `progress` (streaks/stars), `bank` (offline-bank integrity), `plans` and
-  `worksheet`, plus the orchestrator integration test.
+  `ratelimit-shared` (two instances against one Postgres share a window — needs
+  `TEST_DATABASE_URL`, which CI supplies via a service container; skipped
+  otherwise), `progress` (streaks/stars), `bank` (offline-bank integrity),
+  `plans` and `worksheet`, plus the orchestrator integration test.
   All must pass. **Every `/api` route has coverage — keep it that way when
   adding one.**
 - **`TRUST_PROXY` is load-bearing for the rate limiter,** which is keyed on
@@ -168,6 +170,12 @@ everything else is server-only.
   callers can spoof `X-Forwarded-For` and get a fresh bucket per request.
   `render.yaml` sets it to 1; leave it unset locally. `test/proxy.test.js` pins
   both directions.
+- **Rate-limit counters are shared across instances when `DATABASE_URL` is
+  set.** `rateLimitHit()` in `store.js` does the whole fixed-window step in one
+  `INSERT … ON CONFLICT`, so two instances cannot both read the same count and
+  each allow a request. Without Postgres — or if a query fails — the limiter
+  falls back to this process's own counters, which bounds N instances at N× the
+  intended rate rather than dropping the limit entirely.
 - **`src/App.test.jsx` mounts the shell — keep it passing, and extend it when you
   change `App.jsx`.** The sibling repo shipped a `ReferenceError: Cannot access
   'onboard' before initialization` to `main` with a fully green build: every

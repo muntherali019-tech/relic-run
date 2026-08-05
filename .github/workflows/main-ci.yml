@@ -8,6 +8,26 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Postgres is only needed by test/ratelimit-shared.test.js, which boots two
+    # server instances against one database to prove they share a rate-limit
+    # window. That cannot be observed in a single process, and without a real
+    # database here the suite would silently skip and the shared-store code path
+    # would ship untested. Everything else still runs keyless on the file store.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: whisker_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -30,8 +50,13 @@ jobs:
       - name: Audit all dependencies (report only)
         run: npm audit || true
 
+      # TEST_DATABASE_URL is read only by the shared rate-limit suite, which passes
+      # it to the servers it spawns. It is deliberately NOT named DATABASE_URL:
+      # that would switch every other suite onto Postgres and change what they test.
       - name: Run tests
         run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/whisker_test
 
       - name: Syntax-check server
         run: |

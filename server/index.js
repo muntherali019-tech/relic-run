@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { load, save, newId, newCode, overview, weakest, initStore } from "./store.js";
+import { load, save, newId, newCode, overview, weakest, initStore, rateLimitHit } from "./store.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "./auth.js";
 import { sendEmail } from "./email.js";
 import { demoClaudeResponse } from "./demo.js";
@@ -39,13 +39,29 @@ app.use((_req, res, next) => {
 // move this to a shared store (Redis) or a gateway limit.
 const rateBuckets = new Map();
 setInterval(() => { const now = Date.now(); for (const [k, b] of rateBuckets) if (b.reset <= now) rateBuckets.delete(k); }, 60000).unref();
-const rateLimit = (max, windowMs) => (req, res, next) => {
+let sharedLimiterWarned = false;
+const rateLimit = (max, windowMs) => async (req, res, next) => {
   const key = `${req.ip}|${req.path}`;
   const now = Date.now();
-  let b = rateBuckets.get(key);
-  if (!b || b.reset <= now) { b = { count: 0, reset: now + windowMs }; rateBuckets.set(key, b); }
-  if (++b.count > max) {
-    res.setHeader("Retry-After", Math.ceil((b.reset - now) / 1000));
+  let hit = null;
+  try {
+    hit = await rateLimitHit(key, windowMs, now); // null unless Postgres is the backend
+  } catch (e) {
+    // A database blip must not take the site down, and must not silently drop the
+    // limit either — fall through to this process's own counter. Warn once so the
+    // logs say the limit is per-instance without a line per request.
+    if (!sharedLimiterWarned) {
+      sharedLimiterWarned = true;
+      console.error("  Rate limit: shared store unavailable (" + (e.message || e) + ") — using per-instance counters.");
+    }
+  }
+  if (!hit) {
+    let b = rateBuckets.get(key);
+    if (!b || b.reset <= now) { b = { count: 0, reset: now + windowMs }; rateBuckets.set(key, b); }
+    hit = { count: ++b.count, resetAt: b.reset };
+  }
+  if (hit.count > max) {
+    res.setHeader("Retry-After", Math.ceil((hit.resetAt - now) / 1000));
     return res.status(429).json({ error: "Too many requests — please wait a moment and try again." });
   }
   next();

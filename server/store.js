@@ -34,6 +34,10 @@ export async function initStore() {
       const ssl = /localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false };
       pool = new Pool({ connectionString: url, ssl });
       await pool.query("CREATE TABLE IF NOT EXISTS app_state (id int PRIMARY KEY, data jsonb NOT NULL)");
+      await pool.query("CREATE TABLE IF NOT EXISTS rate_limits (key text PRIMARY KEY, count int NOT NULL, reset_at bigint NOT NULL)");
+      // Expired windows are dead weight; the hit query resets them in place, so this
+      // only reclaims keys nobody has touched again.
+      setInterval(() => { pool.query("DELETE FROM rate_limits WHERE reset_at <= $1", [Date.now()]).catch(() => {}); }, 10 * 60000).unref();
       const r = await pool.query("SELECT data FROM app_state WHERE id = 1");
       if (r.rows[0]?.data) {
         cache = { ...EMPTY, ...r.rows[0].data };
@@ -69,6 +73,33 @@ export function save(db) {
 async function persistPg(db) {
   try { await pool.query("INSERT INTO app_state (id, data) VALUES (1, $1::jsonb) ON CONFLICT (id) DO UPDATE SET data = $1::jsonb", [JSON.stringify(db)]); }
   catch (e) { console.error("  Store: DB write failed —", e.message || e); }
+}
+
+/* ---------- shared rate-limit counters ---------- */
+// The limiter in index.js counts per process, so N instances behind a load balancer
+// allow N times the intended rate. When Postgres is the backend the counters live
+// here instead and every instance shares them.
+//
+// The whole fixed-window step is ONE statement on purpose: a read-then-write would
+// let two instances both read count=9 and both allow the request. The upsert takes a
+// row lock, so concurrent hits serialise and the count is exact.
+//
+// Returns null when there is no shared backend — the caller then falls back to its
+// own in-memory counter rather than dropping the limit entirely.
+export async function rateLimitHit(key, windowMs, now = Date.now()) {
+  if (backend !== "pg" || !pool) return null;
+  const resetAt = now + windowMs;
+  const r = await pool.query(
+    `INSERT INTO rate_limits AS t (key, count, reset_at) VALUES ($1, 1, $2)
+     ON CONFLICT (key) DO UPDATE
+       SET count    = CASE WHEN t.reset_at <= $3 THEN 1 ELSE t.count + 1 END,
+           reset_at = CASE WHEN t.reset_at <= $3 THEN $2 ELSE t.reset_at END
+     RETURNING count, reset_at`,
+    [key, resetAt, now],
+  );
+  const row = r.rows[0];
+  // bigint comes back as a string from pg; Number() is safe for ms timestamps.
+  return { count: Number(row.count), resetAt: Number(row.reset_at) };
 }
 
 export const newId = () => crypto.randomUUID();
