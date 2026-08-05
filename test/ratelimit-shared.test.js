@@ -120,3 +120,49 @@ test("the shared window still refuses once exhausted, from either instance", { s
   assert.equal(await login(PORTS.sharedA, ip), 429);
   assert.equal(await login(PORTS.sharedB, ip), 429);
 });
+
+test("instances booting simultaneously against an empty database all reach Postgres", { skip }, async () => {
+  // CREATE TABLE IF NOT EXISTS is not atomic, so concurrent first boots used to
+  // race: one instance won, the rest failed the DDL and fell back to the FILE
+  // store — still serving traffic, but on their own private copy of the data.
+  // Deploys and scale-ups start instances together, so this was the normal path.
+  //
+  // Asserting "they share a rate-limit window" is the sharpest available probe:
+  // an instance that quietly fell back would count in its own memory and allow
+  // the request instead of refusing it.
+  //
+  // Detection is probabilistic — the losing instance has to lose a narrow window —
+  // so this catches a regression across runs rather than on any single one. The
+  // advisory lock in store.js is the deterministic fix; this is the tripwire.
+  const pg = await import("pg");
+  const Pool = pg.Pool || pg.default?.Pool;
+
+  // A throwaway database, so this genuinely exercises the empty-schema path
+  // without disturbing the servers the other tests are using.
+  const dbName = `race_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  const admin = new Pool({ connectionString: DB });
+  await admin.query(`CREATE DATABASE ${dbName}`);
+  const raceUrl = DB.replace(/\/[^/?]*(\?|$)/, `/${dbName}$1`);
+
+  const before = servers.length;
+  try {
+    const ports = [26010, 26011, 26012, 26013, 26014];
+    await Promise.all(ports.map((p) => boot(p, { DATABASE_URL: raceUrl })));
+
+    const ip = randomIp();
+    for (let i = 0; i < AUTH_LIMIT; i++) {
+      assert.equal(await login(ports[0], ip), 401, `attempt ${i + 1} should be allowed`);
+    }
+    for (const p of ports.slice(1)) {
+      assert.equal(await login(p, ip), 429, `instance on ${p} did not join the shared window`);
+    }
+  } finally {
+    for (const s of servers.slice(before)) {
+      s.proc?.kill();
+      rmSync(s.workDir, { recursive: true, force: true });
+    }
+    servers = servers.slice(0, before);
+    await admin.query(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`).catch(() => {});
+    await admin.end().catch(() => {});
+  }
+});

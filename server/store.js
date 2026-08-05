@@ -24,6 +24,32 @@ function ensure() {
 function readFile() { ensure(); try { return { ...EMPTY, ...JSON.parse(fs.readFileSync(FILE, "utf8")) }; } catch { return { ...EMPTY }; } }
 function writeFile(db) { ensure(); fs.writeFileSync(FILE, JSON.stringify(db, null, 2)); }
 
+// Arbitrary but stable key for the schema advisory lock ("whis" as an int).
+const SCHEMA_LOCK = 0x77686973;
+
+// CREATE TABLE IF NOT EXISTS is NOT atomic in Postgres: the existence check and the
+// creation are separate steps, so two instances booting together can both find the
+// table missing and one dies with a duplicate pg_type row. Deploys and scale-ups
+// start instances simultaneously, so this is the normal case, not a corner case —
+// and the loser fell through to the file store, quietly serving its own local copy
+// of the data. An advisory lock serialises the DDL; it is released with the
+// transaction, so a crashed instance cannot wedge the next boot.
+async function ensureSchema() {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock($1)", [SCHEMA_LOCK]);
+    await client.query("CREATE TABLE IF NOT EXISTS app_state (id int PRIMARY KEY, data jsonb NOT NULL)");
+    await client.query("CREATE TABLE IF NOT EXISTS rate_limits (key text PRIMARY KEY, count int NOT NULL, reset_at bigint NOT NULL)");
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 // Call once at startup (before serving) so the cache is ready.
 export async function initStore() {
   const url = process.env.DATABASE_URL;
@@ -33,8 +59,7 @@ export async function initStore() {
       const Pool = pg.Pool || pg.default?.Pool;
       const ssl = /localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false };
       pool = new Pool({ connectionString: url, ssl });
-      await pool.query("CREATE TABLE IF NOT EXISTS app_state (id int PRIMARY KEY, data jsonb NOT NULL)");
-      await pool.query("CREATE TABLE IF NOT EXISTS rate_limits (key text PRIMARY KEY, count int NOT NULL, reset_at bigint NOT NULL)");
+      await ensureSchema();
       // Expired windows are dead weight; the hit query resets them in place, so this
       // only reclaims keys nobody has touched again.
       setInterval(() => { pool.query("DELETE FROM rate_limits WHERE reset_at <= $1", [Date.now()]).catch(() => {}); }, 10 * 60000).unref();

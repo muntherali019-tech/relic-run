@@ -176,6 +176,14 @@ everything else is server-only.
   each allow a request. Without Postgres — or if a query fails — the limiter
   falls back to this process's own counters, which bounds N instances at N× the
   intended rate rather than dropping the limit entirely.
+- **Schema DDL runs under an advisory lock — keep it that way.** `CREATE TABLE
+  IF NOT EXISTS` is *not* atomic in Postgres: the check and the create are
+  separate steps, so instances booting together (every deploy and scale-up) can
+  both find a table missing and one dies on a duplicate `pg_type` row. The loser
+  then fell through to the **file store** and served its own private copy of the
+  data while looking healthy. `ensureSchema()` in `store.js` wraps all DDL in a
+  transaction holding `pg_advisory_xact_lock`. Add new tables there, not as
+  loose `pool.query` calls.
 - **`src/App.test.jsx` mounts the shell — keep it passing, and extend it when you
   change `App.jsx`.** The sibling repo shipped a `ReferenceError: Cannot access
   'onboard' before initialization` to `main` with a fully green build: every
