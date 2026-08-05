@@ -152,13 +152,22 @@ everything else is server-only.
 ## Testing & verification
 
 - `npm test` runs `vitest run` then `node --test`, all keyless. Vitest covers the
-  `src/` specs under jsdom; `node:test` covers six suites over real HTTP and pure
+  `src/` specs under jsdom; `node:test` covers seven suites over real HTTP and pure
   logic: `server` (auth, child access control, cascade deletes, rate limiting),
   `routes` (goals, classes, leaderboard, referrals, prefs, TTS, cron, admin,
-  Stripe portal/webhook), `progress` (streaks/stars), `bank` (offline-bank
-  integrity), `plans` and `worksheet`, plus the orchestrator integration test.
+  Stripe portal/webhook), `proxy` (`TRUST_PROXY` and rate-limit bucketing),
+  `progress` (streaks/stars), `bank` (offline-bank integrity), `plans` and
+  `worksheet`, plus the orchestrator integration test.
   All must pass. **Every `/api` route has coverage — keep it that way when
   adding one.**
+- **`TRUST_PROXY` is load-bearing for the rate limiter,** which is keyed on
+  `req.ip`. Behind Render's TLS-terminating proxy that is the *proxy's* address
+  unless Express is told how many hops to trust, so leaving it unset in
+  production puts every visitor in one bucket and the 11th login site-wide locks
+  everyone out. Setting it with **no** proxy in front is the opposite failure:
+  callers can spoof `X-Forwarded-For` and get a fresh bucket per request.
+  `render.yaml` sets it to 1; leave it unset locally. `test/proxy.test.js` pins
+  both directions.
 - **`src/App.test.jsx` mounts the shell — keep it passing, and extend it when you
   change `App.jsx`.** The sibling repo shipped a `ReferenceError: Cannot access
   'onboard' before initialization` to `main` with a fully green build: every
