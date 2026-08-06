@@ -12,10 +12,9 @@ for parents/teachers. Everything is built from **one React codebase** that ships
 three targets (website, Play Store app, single-file HTML) plus a small Express backend
 that proxies AI calls and holds accounts.
 
-There is a **separate, unrelated subproject** in `reelmint/` — an AI video/image/copy
-studio (Express + zero-build static app). It has its own `package.json`, README, CI
-workflow, and deploy config. Treat it as a distinct project; do not mix its dependencies
-or tooling with the main app. See "Reelmint subproject" below before working in it.
+This repo is **one project only**. Reelmint (an AI video/image/copy studio) used to be
+embedded here in `reelmint/`; it now lives in its own repository. Nothing in this repo
+depends on it.
 
 ## Tech stack
 
@@ -28,7 +27,7 @@ or tooling with the main app. See "Reelmint subproject" below before working in 
   the browser. Client sends a `feature` hint; the server routes per feature to a model.
 - **Mobile:** Capacitor wraps the `app` build for Google Play (`@capacitor/android`).
 - **Tests:** Node's built-in `node:test` runner. No Jest/Vitest, no extra test deps.
-- **Node:** use Node 22 (CI uses 22 for the main app, 20 for reelmint).
+- **Node:** use Node 22 (matching CI).
 
 ## Repository layout
 
@@ -62,12 +61,11 @@ server/
   email.js                Weekly parent emails (console/resend/sendgrid providers).
 test/                     node:test suites: bank, progress, plans, worksheet,
                           server (auth/access control), routes (everything else)
-reelmint/                 Separate AI studio subproject (own package.json + CI).
 .claude/
   commands/               15 optimization prompts, runnable as slash commands.
   hooks/session-start.sh  Installs deps on Claude Code web session start.
   settings.json           Harness settings.
-.github/workflows/        ci.yml (reelmint), main-ci.yml (this app).
+.github/workflows/        main-ci.yml (this app).
 TODO.md                   Status of the 15 optimization passes + verified end state.
 ```
 
@@ -94,8 +92,6 @@ npm run build:app      # Capacitor build -> dist-app
 npm run build:onefile  # single self-contained index.html -> dist-onefile
 npm run preview        # preview the built dist-web
 ```
-
-Reelmint (from `reelmint/`): `npm install` then `npm start` (or `npm run dev`). No build step.
 
 ## Build modes (one codebase, three outputs)
 
@@ -166,9 +162,9 @@ everything else is server-only.
 
 ## CI
 
-- `.github/workflows/main-ci.yml` (this app): `npm ci` → `npm audit --omit=dev --audit-level=high`
-  → `npm test` → `node --check server/*.js` → build web/app/onefile → API smoke test.
-- `.github/workflows/ci.yml` (reelmint, scoped to `reelmint/`).
+`.github/workflows/main-ci.yml` is the only workflow: `npm ci` →
+`npm audit --omit=dev --audit-level=high` → `npm test` → `node --check server/*.js` →
+build web/app/onefile → API smoke test.
 
 Match CI locally before pushing: tests green, audit clean, all three builds succeed.
 
@@ -192,34 +188,3 @@ Match CI locally before pushing: tests green, audit clean, all three builds succ
 - Config / secrets / env → `.env.example` (documents every variable) and the
   per-mode `.env.web` / `.env.app` / `.env.onefile`.
 - Current optimization status and remaining follow-ups → `TODO.md`.
-
-## Reelmint subproject (`reelmint/`)
-
-A distinct product — an AI studio that mints short/long videos, images and copy from
-one prompt — **not** part of Whisker Academy. It's a single Express service serving a
-**zero-build** static app (plain HTML/CSS/JS in `public/`), Node 20, ESM. Uses
-`@anthropic-ai/sdk`, `express`, and optional `pg`; run/build/test only from inside
-`reelmint/`.
-
-- **Commands:** `cd reelmint && npm install && npm start` (`:3000`); `npm test`
-  (`node:test`, no key needed). No build step, no bundler.
-- **Layout:** `server/index.js` (routes), `server/ai.js` (Anthropic + per-feature model
-  routing + demo fallback), `server/content.js` (believable demo library + pure helpers:
-  storyboard decoration, SRT builder — **unit-tested**), `server/auth.js` (accounts,
-  tokens, monthly credits), `server/billing.js` (Stripe via REST, no SDK),
-  `server/images.js` (photoreal providers + Smart-Slide fallback), `server/store.js`
-  (Postgres or JSON file behind one async API). Front-end: `public/{index.html,app.js,styles.css}`.
-- **Studio tools (7):** Create (storyboard→video), AI Editor (voice/text), Hook Lab
-  (A/B hook+thumbnail variants), Series Planner (multi-day calendar), Image (Smart
-  Slides / photoreal), Scan (vision), Repurpose (transcript→clips). Plus Brand Kit and
-  `.srt` subtitle export. Premium tools are credit-gated server-side (`spendCredit`) or
-  plan-gated client-side (`isPro()` = Creator/Studio).
-- **Model routing:** quality model `AI_MODEL` (default `claude-opus-4-8`) for
-  storyboards/edits/vision/image specs; fast model `AI_MODEL_FAST` (default
-  `claude-haiku-4-5`) for captions/hooks. Feature→tier map lives in `server/ai.js`.
-- **Demo mode** (no `ANTHROPIC_API_KEY`): every route returns hand-authored, topic-aware
-  sample content from `server/content.js` — never lorem. Keep it that way when adding
-  features so the studio always demos convincingly.
-- **Conventions:** no key ever reaches the browser; keep the app zero-build (no bundler,
-  inline nothing exotic); put pure/testable logic in `server/content.js`; media rendering
-  stays client-side (Canvas + MediaRecorder). Its CI is `.github/workflows/ci.yml`.
