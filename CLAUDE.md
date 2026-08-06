@@ -176,7 +176,12 @@ everything else is server-only.
   **no** composition rules — uppercase/digit/symbol requirements push people to
   `Password1!` and are explicitly discouraged. Add new blocked words to `COMMON`
   there, and note the CI smoke test signs up for real, so its password must stay
-  off the list.
+  off the list. `checkPassword()` additionally checks the **Have I Been Pwned**
+  corpus when `PWNED_PASSWORDS` is set (`render.yaml` turns it on in production):
+  only the first 5 chars of the SHA-1 leave the process (k-anonymity), no API key
+  is needed, and it **fails open** — an HIBP outage must never block a signup,
+  and the local blocklist has already run. `fetchImpl` is injectable so tests
+  never hit the network.
 - **Rate-limit counters are shared across instances when `DATABASE_URL` is
   set.** `rateLimitHit()` in `store.js` does the whole fixed-window step in one
   `INSERT … ON CONFLICT`, so two instances cannot both read the same count and

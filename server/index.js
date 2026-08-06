@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { load, save, newId, newCode, overview, weakest, initStore, rateLimitHit } from "./store.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "./auth.js";
-import { passwordProblem } from "./password.js";
+import { checkPassword } from "./password.js";
 import { sendEmail } from "./email.js";
 import { demoClaudeResponse } from "./demo.js";
 import { PLAN_CATALOG, getPlan, tracksForPlan, stripePriceFor, publicCatalog } from "./plans.js";
@@ -178,12 +178,17 @@ const auth = (handler) => (req, res) => {
 };
 
 /* ---------- auth ---------- */
-app.post("/api/auth/signup", authLimit, (req, res) => {
+app.post("/api/auth/signup", authLimit, async (req, res) => {
   const { email, password, role = "parent", name = "" } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "Email and password are required." });
-  // Length AND a common-password check (see server/password.js for why there are
-  // no uppercase/digit/symbol rules). The message is safe to show the user.
-  const weak = passwordProblem(password, { email });
+  // Local rules (length, blocklist, context) plus the breach corpus when
+  // PWNED_PASSWORDS is set — see server/password.js for why there are no
+  // uppercase/digit/symbol rules. The message is safe to show the user.
+  //
+  // This await is deliberately BEFORE load(): everything from load() to save()
+  // below is synchronous, so the duplicate-email check and the write cannot be
+  // interleaved with another request. Awaiting in the middle would open that gap.
+  const weak = await checkPassword(password, { email });
   if (weak) return res.status(400).json({ error: weak });
   if (!["parent", "teacher"].includes(role)) return res.status(400).json({ error: "Invalid role." });
   const db = load();

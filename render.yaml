@@ -17,6 +17,10 @@ services:
       # address so per-IP rate limits apply per visitor, not site-wide.
       - key: TRUST_PROXY
         value: "1"
+      # Check new passwords against the Have I Been Pwned corpus. Only the first
+      # 5 chars of the SHA-1 leave the server (k-anonymity); no API key needed.
+      - key: PWNED_PASSWORDS
+        value: "1"
       # Signs auth tokens. Auto-generated so production never runs on the
       # insecure dev fallback secret.
       - key: AUTH_SECRET

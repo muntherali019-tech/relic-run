@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { passwordProblem, candidates, isRun, MIN_LENGTH } from "../server/password.js";
+import { passwordProblem, candidates, isRun, pwnedCount, checkPassword, MIN_LENGTH } from "../server/password.js";
 
 // The point of these tests is the two-sided risk. A strength check that is too
 // weak lets "password" through; one that is too eager rejects a perfectly good
@@ -111,4 +111,96 @@ test("non-string input is handled rather than thrown on", () => {
   for (const v of [undefined, null, 12345678, {}]) {
     assert.ok(passwordProblem(v), `should reject ${String(v)}`);
   }
+});
+
+/* ---------- Have I Been Pwned ---------- */
+
+// A password the LOCAL rules accept — the whole point of these tests is the gap
+// HIBP closes, and "password" would be refused by the blocklist long before any
+// request went out. It also must not be a substring of the request URL: the host
+// is api.pwnedPASSWORDs.com, so "password" would false-positive the assertion
+// below that the secret never goes on the wire.
+const PW = "Tr0ub4dor&3";
+const PW_PREFIX = "87457";
+const PW_SUFFIX = "2E7A5AE6A49466A6AC578B98ADBA78C6AA6";
+
+// A stand-in for the range endpoint. Records what it was asked for so the tests
+// can assert on the request itself, not just the answer.
+function fakeRange({ body = "", status = 200, throws = null } = {}) {
+  const calls = [];
+  const impl = async (url, opts) => {
+    calls.push({ url, opts });
+    if (throws) throw throws;
+    return { ok: status >= 200 && status < 300, status, text: async () => body };
+  };
+  impl.calls = calls;
+  return impl;
+}
+
+test("pwnedCount sends ONLY the 5-character hash prefix", async () => {
+  // This is the entire privacy claim of the feature, so assert it directly:
+  // neither the password nor its full hash may appear anywhere in the request.
+  const fetchImpl = fakeRange({ body: `${PW_SUFFIX}:12345\n` });
+  await pwnedCount(PW, { fetchImpl });
+
+  const { url, opts } = fetchImpl.calls[0];
+  assert.equal(url, `https://api.pwnedpasswords.com/range/${PW_PREFIX}`);
+
+  const wire = url + JSON.stringify(opts?.headers ?? {});
+  assert.ok(!wire.includes(PW), "the password must never be sent");
+  assert.ok(!wire.includes(PW_SUFFIX), "the hash suffix must never be sent");
+  assert.ok(!wire.includes(PW_PREFIX + PW_SUFFIX), "the full hash must never be sent");
+  assert.equal(opts.headers["Add-Padding"], "true", "padding hides the prefix from response size");
+});
+
+test("pwnedCount reports the breach count, or zero when absent", async () => {
+  assert.equal(await pwnedCount(PW, { fetchImpl: fakeRange({ body: `${PW_SUFFIX}:9659365\r\n` }) }), 9659365);
+  // Present in the padded response with a count of 0 = not actually breached.
+  assert.equal(await pwnedCount(PW, { fetchImpl: fakeRange({ body: `${PW_SUFFIX}:0\n` }) }), 0);
+  // Prefix shared, suffix absent.
+  assert.equal(await pwnedCount(PW, { fetchImpl: fakeRange({ body: "0000000000000000000000000000000000A:4\n" }) }), 0);
+});
+
+test("pwnedCount returns null (not a throw, not a zero) when HIBP misbehaves", async () => {
+  // null must be distinguishable from 0 — "unknown" and "clean" are not the same.
+  assert.equal(await pwnedCount(PW, { fetchImpl: fakeRange({ status: 503 }) }), null);
+  assert.equal(await pwnedCount(PW, { fetchImpl: fakeRange({ throws: new Error("ENOTFOUND") }) }), null);
+  assert.equal(await pwnedCount(PW, { fetchImpl: fakeRange({ body: "not a valid body at all" }) }), 0);
+});
+
+test("pwnedCount gives up rather than hanging the signup request", async () => {
+  const hang = async (_url, opts) =>
+    new Promise((_resolve, reject) => opts.signal.addEventListener("abort", () => reject(new Error("aborted"))));
+  const started = Date.now();
+  assert.equal(await pwnedCount(PW, { fetchImpl: hang, timeoutMs: 100 }), null);
+  assert.ok(Date.now() - started < 2000, "must abort on the timeout, not wait for the socket");
+});
+
+test("checkPassword only calls HIBP when enabled, and never for an already-bad password", async () => {
+  const never = fakeRange({ body: `${PW_SUFFIX}:1\n` });
+  // Disabled: no network call at all.
+  assert.equal(await checkPassword("purple-otter-lamp-73", { pwned: false, fetchImpl: never }), null);
+  assert.equal(never.calls.length, 0, "must not call HIBP when disabled");
+
+  // Already rejected locally: don't spend a request confirming it.
+  assert.match(await checkPassword("short", { pwned: true, fetchImpl: never }), /at least 8/);
+  assert.equal(never.calls.length, 0, "must not call HIBP for a password the local rules already refused");
+});
+
+test("checkPassword rejects a breached password that passes every local rule", async () => {
+  // "Tr0ub4dor&3" passes every local rule (an earlier test asserts exactly that)
+  // yet is famously in the corpus. This is precisely the gap HIBP closes, and it
+  // is why the local blocklist alone was never enough.
+  const breached = fakeRange({ body: `${PW_SUFFIX}:42\n` });
+  const problem = await checkPassword(PW, { pwned: true, fetchImpl: breached });
+  assert.match(problem, /appeared in a data breach/);
+});
+
+test("checkPassword fails OPEN when HIBP is unreachable", async () => {
+  // A third-party outage must not stop a parent creating an account. The local
+  // rules have already run, so this is a degradation, not an absence of checks.
+  const down = fakeRange({ throws: new Error("ECONNREFUSED") });
+  assert.equal(await checkPassword("purple-otter-lamp-73", { pwned: true, fetchImpl: down }), null);
+  // ...but the local rules still bite while HIBP is down.
+  assert.match(await checkPassword("iloveyou", { pwned: true, fetchImpl: down }), /too easy to guess/);
 });
