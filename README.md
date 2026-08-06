@@ -1,5 +1,13 @@
 > [!IMPORTANT]
-> **This repository is deprecated.** It was a working copy of Education Academy, and every improvement made here (vite 8, test suite, API hardening, offline support, the App.jsx refactor, and more) has been merged into the canonical repo: **[muntherali019-tech/Higher-education-](https://github.com/muntherali019-tech/Higher-education-)** — the repo behind the live site at <https://higher-education.onrender.com>. Develop there; this repo is kept only for history and can be archived or deleted.
+> **This repository is retired — do not develop here.**
+>
+> Education Academy now lives in one place: **[muntherali019-tech/Education-academy-](https://github.com/muntherali019-tech/Education-academy-)**.
+>
+> This was a working copy of the app. An earlier version of this notice claimed every
+> improvement made here had been merged into `Higher-education-` — that was not true.
+> The per-IP rate limiter and the fail-closed Stripe webhook only ever existed here,
+> and both have now been ported into the canonical repo. Nothing else unique remains,
+> so this repo is kept for history only.
 
 # 🐱 Education Academy
 

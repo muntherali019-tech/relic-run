@@ -1,9 +1,10 @@
 name: Main App CI
 
+# This repo is retired; the app lives in muntherali019-tech/Education-academy-.
+# Automatic runs are off so a stale duplicate stops reporting green. Still
+# runnable by hand from the Actions tab if you need to check out history.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:

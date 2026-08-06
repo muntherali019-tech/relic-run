@@ -1,5 +1,14 @@
 # CLAUDE.md
 
+> [!IMPORTANT]
+> **This repository is retired. Do not make changes here.**
+>
+> Education Academy is developed in **muntherali019-tech/Education-academy-**, which
+> holds this codebase plus the per-IP rate limiter and fail-closed Stripe webhook.
+> If you were asked to change Education Academy, work in that repo instead.
+>
+> The guidance below is kept only so the history here stays readable.
+
 Guidance for AI assistants (Claude Code and others) working in this repository.
 
 ## What this is
