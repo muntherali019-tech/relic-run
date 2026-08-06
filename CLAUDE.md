@@ -170,6 +170,13 @@ everything else is server-only.
   callers can spoof `X-Forwarded-For` and get a fresh bucket per request.
   `render.yaml` sets it to 1; leave it unset locally. `test/proxy.test.js` pins
   both directions.
+- **Password strength lives in `server/password.js`** (`passwordProblem()`),
+  enforced server-side at signup. It follows **NIST SP 800-63B**: a length floor
+  plus a blocklist of common and context-specific passwords, and deliberately
+  **no** composition rules — uppercase/digit/symbol requirements push people to
+  `Password1!` and are explicitly discouraged. Add new blocked words to `COMMON`
+  there, and note the CI smoke test signs up for real, so its password must stay
+  off the list.
 - **Rate-limit counters are shared across instances when `DATABASE_URL` is
   set.** `rateLimitHit()` in `store.js` does the whole fixed-window step in one
   `INSERT … ON CONFLICT`, so two instances cannot both read the same count and

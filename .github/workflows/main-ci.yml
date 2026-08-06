@@ -87,5 +87,5 @@ jobs:
           curl -fsS http://localhost:8787/api/health
           curl -fsS -X POST http://localhost:8787/api/auth/signup \
             -H 'content-type: application/json' \
-            -d '{"email":"ci@example.com","password":"secret123"}' > /dev/null && echo "signup OK"
+            -d '{"email":"ci@example.com","password":"ci-smoke-otter-42"}' > /dev/null && echo "signup OK"
           kill $SRV 2>/dev/null || true

@@ -61,9 +61,15 @@ test("health endpoint reports demo mode", async () => {
   assert.equal(r.body.ok, true);
 });
 
-test("signup rejects short passwords and bad roles", async () => {
+test("signup rejects short passwords, weak passwords and bad roles", async () => {
   const short = await api("POST", "/api/auth/signup", { body: { email: "short@example.com", password: "tiny" } });
   assert.equal(short.status, 400);
+  // Long enough, but the single most guessed password there is. The strength
+  // rules are unit-tested in password.test.js; this pins that the route actually
+  // consults them.
+  const common = await api("POST", "/api/auth/signup", { body: { email: "common@example.com", password: "P@ssw0rd" } });
+  assert.equal(common.status, 400);
+  assert.match(common.body.error, /too easy to guess/);
   const badRole = await api("POST", "/api/auth/signup", { body: { email: "role@example.com", password: "longenough1", role: "admin" } });
   assert.equal(badRole.status, 400);
 });

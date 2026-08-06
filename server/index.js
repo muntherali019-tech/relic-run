@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { load, save, newId, newCode, overview, weakest, initStore, rateLimitHit } from "./store.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "./auth.js";
+import { passwordProblem } from "./password.js";
 import { sendEmail } from "./email.js";
 import { demoClaudeResponse } from "./demo.js";
 import { PLAN_CATALOG, getPlan, tracksForPlan, stripePriceFor, publicCatalog } from "./plans.js";
@@ -180,7 +181,10 @@ const auth = (handler) => (req, res) => {
 app.post("/api/auth/signup", authLimit, (req, res) => {
   const { email, password, role = "parent", name = "" } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "Email and password are required." });
-  if (String(password).length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+  // Length AND a common-password check (see server/password.js for why there are
+  // no uppercase/digit/symbol rules). The message is safe to show the user.
+  const weak = passwordProblem(password, { email });
+  if (weak) return res.status(400).json({ error: weak });
   if (!["parent", "teacher"].includes(role)) return res.status(400).json({ error: "Invalid role." });
   const db = load();
   const exists = Object.values(db.users).some((u) => u.email.toLowerCase() === String(email).toLowerCase());
