@@ -14,6 +14,65 @@ import * as review from "../lib/review.js";
 const KS_OPTIONS = KS_META.map((m) => [m.id, KS_LABEL[m.id]]);
 const acc = (p) => (p >= 70 ? "var(--good)" : p >= 40 ? "var(--sunny)" : "var(--coral)");
 
+/* Change your password, and the nudge to do it.
+   `warning` is what the server said about the password used to sign in — an
+   account can predate the password policy, or a password can turn up in a breach
+   years after it was chosen. It never blocks signing in, so this is the only
+   place the learner's grown-up finds out. */
+function PasswordCard({ token, warning, onChanged }) {
+  const tr = useT();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ current: "", next: "" });
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function submit() {
+    setBusy(true); setErr("");
+    try {
+      const d = await cloud.changePassword(token, form.current, form.next);
+      setForm({ current: "", next: "" });
+      setOpen(false); setDone(true);
+      onChanged(d); // carries a fresh token — the old one is now dead
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 12 }}>
+      {warning && !done && (
+        <div className="pwwarn" role="status">
+          <div style={{ fontWeight: 800 }}>{tr("Time to change your password")}</div>
+          <div className="muted" style={{ marginTop: 2 }}>{warning}</div>
+        </div>
+      )}
+      {done && <p style={{ color: "var(--good)", fontWeight: 800, margin: 0 }}>{tr("Password changed. Other devices have been signed out.")}</p>}
+      {open ? (
+        <>
+          <div className="field"><label>{tr("Current password")}</label>
+            <input className="tin" type="password" autoComplete="current-password" value={form.current}
+              onChange={(e) => setForm({ ...form, current: e.target.value })} /></div>
+          <div className="field"><label>{tr("New password")}</label>
+            <input className="tin" type="password" autoComplete="new-password" minLength={8} aria-describedby="newpw-hint" value={form.next}
+              onChange={(e) => setForm({ ...form, next: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && submit()} />
+            <p className="fieldhint" id="newpw-hint">{tr("At least 8 characters")}</p></div>
+          {err && <p className="err">{err}</p>}
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <button className="bigbtn ghost" style={{ marginTop: 0, flex: 1 }} onClick={() => { setOpen(false); setErr(""); }}>{tr("Cancel")}</button>
+            <button className="bigbtn purple" style={{ marginTop: 0, flex: 1 }} disabled={busy} onClick={submit}>
+              {busy ? <Loader2 className="wiggle" size={18} /> : tr("Change password")}
+            </button>
+          </div>
+        </>
+      ) : (
+        <button className="bigbtn" style={{ marginTop: warning && !done ? 12 : 0 }} onClick={() => { setOpen(true); setDone(false); }}>
+          {tr("Change password")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* Goals & tasks for one child. Shows BOTH tracks; you can only edit your own. */
 function GoalSection({ token, child, role }) {
   const tr = useT();
@@ -125,6 +184,8 @@ export default function GrownUps({ onClose, onBind, onPrivacy }) {
   const [f, setF] = useState({ name: "", email: "", password: "", role: "parent" });
   const [authErr, setAuthErr] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  // What the server said about the password just used to sign in (null = fine).
+  const [pwWarning, setPwWarning] = useState(null);
 
   // data
   const [children, setChildren] = useState([]);
@@ -156,9 +217,17 @@ export default function GrownUps({ onClose, onBind, onPrivacy }) {
     setAuthBusy(true); setAuthErr("");
     try {
       const data = mode === "up" ? await cloud.signup(f.email, f.password, f.role, f.name) : await cloud.login(f.email, f.password);
+      setPwWarning(data.passwordWarning || null);
       const sess = { token: data.token, user: data.user };
       cloud.setSession(sess); setSession(sess); routeFor(data.user, data.token);
     } catch (e) { setAuthErr(e.message); } finally { setAuthBusy(false); }
+  }
+  // The server rotates the token on a password change (it invalidates every
+  // session opened before it, including this one), so persist what came back or
+  // the very next request 401s.
+  function onPasswordChanged(d) {
+    const sess = { token: d.token, user: d.user };
+    cloud.setSession(sess); setSession(sess); setPwWarning(null);
   }
   function signOut() { cloud.clearSession(); setSession(null); setView("account"); setChildren([]); setClasses([]); setActiveChild(null); setActivePupil(null); }
 
@@ -288,7 +357,10 @@ Sent from Education Academy`;
             </>
           )}
           <div className="field"><label>{tr("Email")}</label><input className="tin" type="email" autoComplete="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
-          <div className="field"><label>{tr("Password")}</label><input className="tin" type="password" autoComplete={mode === "up" ? "new-password" : "current-password"} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} onKeyDown={(e) => e.key === "Enter" && submitAuth()} /></div>
+          {/* minLength/hint are a courtesy only when signing up — the server is the
+              authority and rejects a weak password with a message we render below. */}
+          <div className="field"><label>{tr("Password")}</label><input className="tin" type="password" autoComplete={mode === "up" ? "new-password" : "current-password"} minLength={mode === "up" ? 8 : undefined} aria-describedby={mode === "up" ? "pw-hint" : undefined} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} onKeyDown={(e) => e.key === "Enter" && submitAuth()} />
+            {mode === "up" && <p className="fieldhint" id="pw-hint">{tr("At least 8 characters")}</p>}</div>
           {authErr && <p className="err">{authErr}</p>}
           <button className="bigbtn purple" disabled={authBusy} onClick={submitAuth}>
             {authBusy ? <Loader2 className="wiggle" size={18} /> : mode === "up" ? tr("Create account") : tr("Sign in")}
@@ -339,6 +411,7 @@ Sent from Education Academy`;
             <button className={`switch ${session.user.weeklyEmail ? "on" : ""}`} role="switch" aria-checked={!!session.user.weeklyEmail} aria-label="Weekly email summary" onClick={toggleWeekly}><span /></button>
           </div>
         </div>
+        <PasswordCard token={t} warning={pwWarning} onChanged={onPasswordChanged} />
         <button className="bigbtn ghost" onClick={signOut}><LogOut size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{tr("Sign out")}</button>
         <button className="linkbtn" style={{ color: "var(--bad)", display: "block", margin: "10px auto 0" }} onClick={deleteAccount}>{tr("Delete my account & data")}</button>
       </main>
@@ -425,6 +498,7 @@ Sent from Education Academy`;
                 </div>
               </div>
             ) : <button className="bigbtn" onClick={() => setClassForm({ ...classForm, open: true })}><Plus size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{tr("Create a class")}</button>}
+            <PasswordCard token={t} warning={pwWarning} onChanged={onPasswordChanged} />
             <button className="bigbtn ghost" onClick={signOut}><LogOut size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />{tr("Sign out")}</button>
             <button className="linkbtn" style={{ color: "var(--bad)", display: "block", margin: "10px auto 0" }} onClick={deleteAccount}>{tr("Delete my account & data")}</button>
           </>

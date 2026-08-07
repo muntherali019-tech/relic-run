@@ -153,7 +153,12 @@ app.post("/api/tts", aiLimit, async (req, res) => {
 function userFromReq(db, req) {
   const m = /^Bearer (.+)$/.exec(req.headers.authorization || "");
   const payload = m && verifyToken(m[1]);
-  return payload && db.users[payload.uid] ? db.users[payload.uid] : null;
+  const user = payload && db.users[payload.uid] ? db.users[payload.uid] : null;
+  // Tokens are stateless, so a password change can only be enforced here:
+  // anything issued before it is refused. Strict `<` keeps the replacement
+  // token minted in the same millisecond as the change itself valid.
+  if (user && user.pwChangedAt && payload.iat < user.pwChangedAt) return null;
+  return user;
 }
 const pub = (u) => ({ id: u.id, email: u.email, role: u.role, name: u.name, weeklyEmail: !!u.weeklyEmail, subs: u.subs || { junior: false, adult: false }, referralCode: u.referralCode || null, pendingBonus: u.pendingBonus || 0 });
 function canAccessChild(db, user, childId) {
@@ -208,13 +213,49 @@ app.post("/api/auth/signup", authLimit, async (req, res) => {
   res.json({ token: signToken({ uid: user.id }), user: pub(user) });
 });
 
-app.post("/api/auth/login", authLimit, (req, res) => {
+app.post("/api/auth/login", authLimit, async (req, res) => {
   const { email, password } = req.body || {};
   const db = load();
   const user = Object.values(db.users).find((u) => u.email.toLowerCase() === String(email || "").toLowerCase());
   if (!user || !verifyPassword(password, user.salt, user.hash)) return res.status(401).json({ error: "Wrong email or password." });
-  res.json({ token: signToken({ uid: user.id }), user: pub(user) });
+  // Accounts created before the password policy have never been checked, and a
+  // password can appear in a breach corpus long after it was chosen — so check
+  // the credential we were just handed. This NEVER blocks the login: a breach
+  // hit is a prompt to change the password, not evidence this account is
+  // compromised, and locking someone out of the account they need in order to
+  // fix it helps nobody. It is advisory only; the client shows a banner.
+  const passwordWarning = await checkPassword(password, { email: user.email });
+  res.json({ token: signToken({ uid: user.id }), user: pub(user), passwordWarning });
 });
+
+// Change the password. Requires the current one, so a stolen token alone cannot
+// take the account over.
+app.put("/api/me/password", authLimit, auth(async (req, res, db, user) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!verifyPassword(currentPassword, user.salt, user.hash)) {
+      return res.status(401).json({ error: "Your current password is not right." });
+    }
+    if (verifyPassword(newPassword, user.salt, user.hash)) {
+      return res.status(400).json({ error: "That is the password you are already using." });
+    }
+    const weak = await checkPassword(newPassword, { email: user.email });
+    if (weak) return res.status(400).json({ error: weak });
+
+    const { salt, hash } = hashPassword(newPassword);
+    user.salt = salt;
+    user.hash = hash;
+    // End every session opened before this moment (see userFromReq). If the old
+    // password leaked, changing it has to log out whoever else was using it —
+    // otherwise the change is cosmetic for as long as their token lives.
+    user.pwChangedAt = Date.now();
+    save(db);
+    // ...which includes the caller's own session, so hand back a fresh token.
+    res.json({ token: signToken({ uid: user.id }), user: pub(user) });
+  } catch {
+    res.status(500).json({ error: "Could not change the password. Please try again." });
+  }
+}));
 
 app.get("/api/me", auth((_req, res, _db, user) => res.json({ user: pub(user) })));
 

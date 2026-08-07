@@ -232,6 +232,12 @@ main{flex:1}
 select.tin{appearance:none;-webkit-appearance:none}
 .field{margin-top:12px}
 .field>label{font-weight:800;font-size:13px;display:block;margin-bottom:6px;color:var(--muted)}
+/* Hint under an input. Not .note — that one is centred with a big top margin
+   for standalone footnotes, which reads as detached when it belongs to a field. */
+.fieldhint{font-size:12px;color:var(--muted);font-weight:700;margin-top:6px}
+/* Advisory banner when the password used to sign in is weak or breached. It
+   informs rather than blocks, so it is a notice colour, not an error colour. */
+.pwwarn{background:#fff4e6;border:2px solid var(--sunny);border-radius:14px;padding:10px 12px;font-size:14px}
 .seg{border:2px solid #f0e6d9;background:#fff;border-radius:14px;padding:11px 14px;font-family:'Fredoka';font-weight:600;font-size:16px;cursor:pointer;color:var(--ink)}
 .seg.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .seg:active{transform:translateY(2px)}

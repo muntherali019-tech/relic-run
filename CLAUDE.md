@@ -156,6 +156,7 @@ everything else is server-only.
   logic: `server` (auth, child access control, cascade deletes, rate limiting),
   `routes` (goals, classes, leaderboard, referrals, prefs, TTS, cron, admin,
   Stripe portal/webhook), `proxy` (`TRUST_PROXY` and rate-limit bucketing),
+  `password-change` (login warning, change route, session invalidation),
   `ratelimit-shared` (two instances against one Postgres share a window — needs
   `TEST_DATABASE_URL`, which CI supplies via a service container; skipped
   otherwise), `progress` (streaks/stars), `bank` (offline-bank integrity),
@@ -182,6 +183,16 @@ everything else is server-only.
   is needed, and it **fails open** — an HIBP outage must never block a signup,
   and the local blocklist has already run. `fetchImpl` is injectable so tests
   never hit the network.
+- **Existing accounts are covered at login, not just at signup.** `/api/auth/login`
+  runs `checkPassword()` on the credential it was handed and returns a
+  `passwordWarning` alongside the token. It **never blocks the sign-in** — a
+  breach hit is a prompt, not proof this account is compromised, and locking
+  someone out of the only screen that can fix it helps nobody. The portal shows
+  it as an advisory banner. `PUT /api/me/password` requires the current
+  password, applies the same policy to the new one, and sets `user.pwChangedAt`
+  — `userFromReq()` refuses any token issued before that, so changing a leaked
+  password signs out every other session. The route returns a fresh token; the
+  client must store it or its next request 401s.
 - **Rate-limit counters are shared across instances when `DATABASE_URL` is
   set.** `rateLimitHit()` in `store.js` does the whole fixed-window step in one
   `INSERT … ON CONFLICT`, so two instances cannot both read the same count and
