@@ -208,6 +208,7 @@ app.post("/api/auth/signup", authLimit, async (req, res) => {
     const referrer = Object.values(db.users).find((u) => (u.referralCode || "").toUpperCase() === refCode && u.id !== user.id);
     if (referrer) user.referredBy = referrer.id;
   }
+  user.pwCheckedAt = Date.now(); // the password just passed the full policy
   db.users[user.id] = user;
   save(db);
   res.json({ token: signToken({ uid: user.id }), user: pub(user) });
@@ -225,6 +226,11 @@ app.post("/api/auth/login", authLimit, async (req, res) => {
   // compromised, and locking someone out of the account they need in order to
   // fix it helps nobody. It is advisory only; the client shows a banner.
   const passwordWarning = await checkPassword(password, { email: user.email });
+  // Record that this account's password has actually been examined. It is the
+  // only coverage signal there is: a stored scrypt hash cannot be tested, so
+  // "when did a human last type this password at us" is all we can know.
+  user.pwCheckedAt = Date.now();
+  save(db);
   res.json({ token: signToken({ uid: user.id }), user: pub(user), passwordWarning });
 });
 
@@ -249,6 +255,7 @@ app.put("/api/me/password", authLimit, auth(async (req, res, db, user) => {
     // password leaked, changing it has to log out whoever else was using it —
     // otherwise the change is cosmetic for as long as their token lives.
     user.pwChangedAt = Date.now();
+    user.pwCheckedAt = user.pwChangedAt;
     save(db);
     // ...which includes the caller's own session, so hand back a fresh token.
     res.json({ token: signToken({ uid: user.id }), user: pub(user) });
@@ -527,6 +534,96 @@ app.post("/api/cron/weekly-reports", async (req, res) => {
 
 if (process.env.WEEKLY_EMAILS_INPROCESS === "1") {
   setInterval(() => { runWeeklyReports().then((n) => n && console.log("weekly emails sent:", n)).catch(() => {}); }, 24 * 3600 * 1000);
+}
+
+/* ---------- dormant-account password sweep ---------- */
+// What this CANNOT do, and why it is not a shortcoming to fix later:
+//
+// Passwords are stored as scrypt(password, per-user salt). Have I Been Pwned
+// needs the SHA-1 of the PLAINTEXT. There is no way to get from one to the
+// other — that is the entire purpose of hashing a password, and the storage is
+// correct as it stands. So no background job can ever test a dormant account's
+// password against a breach corpus. Anything that could would require keeping
+// the password in a reversible or weakly-hashed form, which would be a far
+// worse problem than the one it solved.
+//
+// What is achievable: know WHICH accounts have never had their password
+// examined (pwCheckedAt is stamped at signup, login and change), and ask their
+// owner to sign in so the login-time check can run. That converts an unknowable
+// account into a known one, which is the most anyone can offer here.
+const DAY = 24 * 3600 * 1000;
+const sweepDays = (name, fallback) => Math.max(1, Number(process.env[name] || fallback)) * DAY;
+
+// Not exported: this module calls app.listen() on import, so the only way to
+// reach this is over HTTP — which is what the tests do.
+function passwordCoverage(db, now = Date.now()) {
+  const staleAfter = sweepDays("PASSWORD_SWEEP_STALE_DAYS", 180);
+  const rows = Object.values(db.users);
+  const stale = rows.filter((u) => !u.pwCheckedAt || now - u.pwCheckedAt > staleAfter);
+  return {
+    accounts: rows.length,
+    checked: rows.length - stale.length,
+    neverChecked: rows.filter((u) => !u.pwCheckedAt).length,
+    stale: stale.length,
+    staleAfterDays: staleAfter / DAY,
+  };
+}
+
+// Emails dormant owners a prompt to sign in. Off unless PASSWORD_SWEEP=1, and
+// each account is prompted at most once per PASSWORD_SWEEP_INTERVAL_DAYS — a
+// security nudge that arrives repeatedly is just spam, and gets filtered.
+async function runPasswordSweep({ now = Date.now(), dryRun = false } = {}) {
+  const db = load();
+  const staleAfter = sweepDays("PASSWORD_SWEEP_STALE_DAYS", 180);
+  const promptEvery = sweepDays("PASSWORD_SWEEP_INTERVAL_DAYS", 90);
+  const coverage = passwordCoverage(db, now);
+  const due = Object.values(db.users).filter(
+    (u) => (!u.pwCheckedAt || now - u.pwCheckedAt > staleAfter) &&
+           (!u.pwPromptedAt || now - u.pwPromptedAt > promptEvery),
+  );
+  if (dryRun || process.env.PASSWORD_SWEEP !== "1") {
+    return { ...coverage, due: due.length, emailed: 0, sent: false };
+  }
+
+  let emailed = 0;
+  for (const user of due) {
+    // Deliberately does NOT claim their password is bad — we cannot know that.
+    // It says what is true: we will check it the next time they sign in.
+    const text = [
+      `Hello${user.name ? " " + user.name : ""},`,
+      "",
+      "It has been a while since you signed in to Education Academy.",
+      "",
+      "We store your password hashed, so we genuinely cannot read it or check it for you.",
+      "What we can do is check it against known data breaches the moment you next sign in,",
+      "and tell you there and then if it is worth changing. It takes a few seconds.",
+      "",
+      "If you would rather change it straight away, sign in and open the Parent & Teacher",
+      "portal — there is a Change password button on your account.",
+      "",
+      "— Mochi 🐾",
+    ].join("\n");
+    try {
+      await sendEmail({ to: user.email, subject: "A quick password check-in", text });
+      user.pwPromptedAt = now;
+      emailed++;
+    } catch (e) { console.error("password sweep email failed for", user.email, String(e)); }
+  }
+  save(db);
+  return { ...coverage, due: due.length, emailed, sent: true };
+}
+
+// Report coverage (always safe) and, when enabled, send the prompts.
+// POST /api/cron/password-sweep?dry=1 reports without sending.
+app.post("/api/cron/password-sweep", async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  if (secret && req.headers["x-cron-secret"] !== secret) return res.status(401).json({ error: "Bad cron secret." });
+  try { res.json({ ok: true, ...(await runPasswordSweep({ dryRun: req.query.dry === "1" })) }); }
+  catch (e) { res.status(500).json({ error: String(e) }); }
+});
+
+if (process.env.WEEKLY_EMAILS_INPROCESS === "1") {
+  setInterval(() => { runPasswordSweep().then((r) => r.emailed && console.log("password prompts sent:", r.emailed)).catch(() => {}); }, 7 * DAY);
 }
 
 /* ---------- admin: preview / trigger a parent's report on demand ---------- */
