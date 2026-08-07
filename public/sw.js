@@ -5,6 +5,10 @@
  *                       the app (and its offline question bank) opens offline
  *   - /assets/*, icons  cache-first — filenames are content-hashed, so a hit
  *                       is always correct and updates arrive under new names
+ *   - /fonts/*.woff2    cache-first too, so the typeface survives offline. These
+ *                       filenames are NOT content-hashed (they are served from
+ *                       public/), so replacing a font needs a VERSION bump to
+ *                       reach browsers that already cached it.
  * Bump VERSION to drop all old caches on the next activation.
  */
 const VERSION = "v1";
@@ -43,7 +47,7 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || /\.(png|svg|webmanifest|ico)$/.test(url.pathname)) {
+  if (url.pathname.startsWith("/assets/") || /\.(png|svg|webmanifest|ico|woff2)$/.test(url.pathname)) {
     e.respondWith((async () => {
       const hit = await caches.match(e.request);
       if (hit) return hit;

@@ -23,6 +23,10 @@ export const signup = (email, password, role, name) => {
 };
 export const login = (email, password) => req("/auth/login", { method: "POST", body: { email, password } });
 export const me = (token) => req("/me", { token });
+// Returns a FRESH token: the server invalidates every session opened before the
+// change, including this one, so the caller must store what comes back.
+export const changePassword = (token, currentPassword, newPassword) =>
+  req("/me/password", { method: "PUT", token, body: { currentPassword, newPassword } });
 export const leaderboard = (token, childId) => req(`/leaderboard?childId=${encodeURIComponent(childId)}`, { token });
 export const claimReferral = (token) => req("/referral/claim", { method: "POST", token }).then((d) => d.bonus || 0);
 export const qualifyReferral = (token) => req("/referral/qualify", { method: "POST", token }).then((d) => !!d.credited);

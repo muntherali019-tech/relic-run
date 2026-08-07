@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#FFF4E6" />
     <meta name="description" content="Education Academy — playful, AI-powered learning for UK key stages with a friendly cat tutor, plus advanced exam-prep courses." />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -10,6 +10,30 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Education Academy" />
     <meta name="format-detection" content="telephone=no" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Social cards. og:image is a real 1200x630 raster: most scrapers will not
+         render an SVG icon, and a card with no image is just a grey link.
+         NOTE: og:url and <link rel="canonical"> are deliberately absent until a
+         production domain is settled (PUBLIC_WEB_URL still defaults to
+         localhost) — they must be absolute, and pointing them at the wrong host
+         is worse than omitting them. Make og:image absolute at the same time;
+         relative image URLs are resolved inconsistently by scrapers. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Education Academy" />
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:title" content="Education Academy — learn and play with Mochi" />
+    <meta property="og:description" content="Playful, AI-powered learning for UK Key Stages 1-3 and Higher Education, with a friendly cat tutor, homework marking and scan-and-solve." />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Education Academy — learn and play with Mochi the cat" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Education Academy — learn and play with Mochi" />
+    <meta name="twitter:description" content="Playful, AI-powered learning for UK Key Stages 1-3 and Higher Education, with a friendly cat tutor." />
+    <meta name="twitter:image" content="/og-image.png" />
+    <meta name="twitter:image:alt" content="Education Academy — learn and play with Mochi the cat" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />

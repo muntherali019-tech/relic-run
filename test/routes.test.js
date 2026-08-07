@@ -279,6 +279,26 @@ test("TTS reports a missing key rather than calling out", async () => {
   assert.match(r.body.error, /ELEVENLABS_API_KEY/);
 });
 
+test("the password sweep is gated on the cron secret", async () => {
+  // Same gate as the weekly report. Worth its own case: the sweep reads every
+  // account's password-check state, so an open endpoint would hand an attacker
+  // a map of which accounts have never been examined.
+  assert.equal((await api("POST", "/api/cron/password-sweep", { body: {} })).status, 401);
+  assert.equal(
+    (await api("POST", "/api/cron/password-sweep", { body: {}, headers: { "x-cron-secret": "wrong" } })).status,
+    401
+  );
+
+  const ok = await api("POST", "/api/cron/password-sweep", {
+    body: {},
+    headers: { "x-cron-secret": CRON_SECRET },
+  });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.ok, true);
+  assert.equal(typeof ok.body.accounts, "number");
+  assert.equal(ok.body.sent, false, "PASSWORD_SWEEP is unset in tests, so nothing is emailed");
+});
+
 test("the weekly-report cron is gated on its secret", async () => {
   assert.equal((await api("POST", "/api/cron/weekly-reports", { body: {} })).status, 401);
   assert.equal(

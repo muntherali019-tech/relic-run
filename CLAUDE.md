@@ -27,7 +27,9 @@ or tooling with the main app. See "Reelmint subproject" below before working in 
 - **AI:** Anthropic Claude, called only from the server so the API key never reaches
   the browser. Client sends a `feature` hint; the server routes per feature to a model.
 - **Mobile:** Capacitor wraps the `app` build for Google Play (`@capacitor/android`).
-- **Tests:** Node's built-in `node:test` runner. No Jest/Vitest, no extra test deps.
+- **Tests:** two runners, both under `npm test` — **Vitest** (jsdom) for the `src/`
+  specs that mount React, and Node's built-in **`node:test`** for everything in
+  `test/` and `tests/`.
 - **Node:** use Node 22 (CI uses 22 for the main app, 20 for reelmint).
 
 ## Repository layout
@@ -60,8 +62,10 @@ server/
   auth.js                 Password hashing + signed-token auth (built-in dev auth).
   store.js                Persistence backend (file or Postgres); routes use load()/save().
   email.js                Weekly parent emails (console/resend/sendgrid providers).
+src/App.test.jsx          Vitest/jsdom render smoke tests for the app shell
 test/                     node:test suites: bank, progress, plans, worksheet,
                           server (auth/access control), routes (everything else)
+vitest.setup.js           Vitest setup (jest-dom matchers, localStorage reset)
 reelmint/                 Separate AI studio subproject (own package.json + CI).
 .claude/
   commands/               15 optimization prompts, runnable as slash commands.
@@ -88,7 +92,7 @@ npm install            # install deps (session-start hook does this on Claude we
 npm run dev            # Vite dev server (web mode) on :5173, proxies /api -> :8787
 npm run server         # Express backend on :8787
 npm start              # run web + api together (concurrently)
-npm test               # node:test — the full suite (run this before committing)
+npm test               # vitest run + node:test — the full suite (before committing)
 npm run build          # web build  -> dist-web  (alias: build:web)
 npm run build:app      # Capacitor build -> dist-app
 npm run build:onefile  # single self-contained index.html -> dist-onefile
@@ -116,7 +120,10 @@ everything else is server-only.
   Express proxy (`/api/claude`, `/api/tts`). The browser calls `src/lib/api.js`, which
   hits `/api` (proxied in dev; `VITE_API_BASE` in prod).
 - **No new dependencies without good reason.** The project deliberately avoids extra
-  deps (tests use `node:test`, the rate limiter and store are hand-rolled).
+  deps (the rate limiter and store are hand-rolled, and the API suites use
+  `node:test`). The one deliberate exception is the Vitest/jsdom/testing-library
+  devDependencies, added because nothing could mount React otherwise — see the
+  render smoke tests below.
   **Runtime dependencies must stay at 0 vulnerabilities** — CI fails on
   high/critical for `npm audit --omit=dev`, and that gate is the one to keep
   green. The full audit runs report-only because the remaining high advisories
@@ -144,12 +151,86 @@ everything else is server-only.
 
 ## Testing & verification
 
-- `npm test` runs six suites over real HTTP and pure logic, all keyless: `server`
-  (auth, child access control, cascade deletes, rate limiting), `routes`
-  (goals, classes, leaderboard, referrals, prefs, TTS, cron, admin, Stripe
-  portal/webhook), `progress` (streaks/stars), `bank` (offline-bank integrity),
-  `plans` and `worksheet`. All must pass. **Every `/api` route has coverage —
-  keep it that way when adding one.**
+- `npm test` runs `vitest run` then `node --test`, all keyless. Vitest covers the
+  `src/` specs under jsdom; `node:test` covers seven suites over real HTTP and pure
+  logic: `server` (auth, child access control, cascade deletes, rate limiting),
+  `routes` (goals, classes, leaderboard, referrals, prefs, TTS, cron, admin,
+  Stripe portal/webhook), `proxy` (`TRUST_PROXY` and rate-limit bucketing),
+  `password-change` (login warning, change route, session invalidation),
+  `ratelimit-shared` (two instances against one Postgres share a window — needs
+  `TEST_DATABASE_URL`, which CI supplies via a service container; skipped
+  otherwise), `progress` (streaks/stars), `bank` (offline-bank integrity),
+  `plans` and `worksheet`, plus the orchestrator integration test.
+  All must pass. **Every `/api` route has coverage — keep it that way when
+  adding one.**
+- **`TRUST_PROXY` is load-bearing for the rate limiter,** which is keyed on
+  `req.ip`. Behind Render's TLS-terminating proxy that is the *proxy's* address
+  unless Express is told how many hops to trust, so leaving it unset in
+  production puts every visitor in one bucket and the 11th login site-wide locks
+  everyone out. Setting it with **no** proxy in front is the opposite failure:
+  callers can spoof `X-Forwarded-For` and get a fresh bucket per request.
+  `render.yaml` sets it to 1; leave it unset locally. `test/proxy.test.js` pins
+  both directions.
+- **Password strength lives in `server/password.js`** (`passwordProblem()`),
+  enforced server-side at signup. It follows **NIST SP 800-63B**: a length floor
+  plus a blocklist of common and context-specific passwords, and deliberately
+  **no** composition rules — uppercase/digit/symbol requirements push people to
+  `Password1!` and are explicitly discouraged. Add new blocked words to `COMMON`
+  there, and note the CI smoke test signs up for real, so its password must stay
+  off the list. `checkPassword()` additionally checks the **Have I Been Pwned**
+  corpus when `PWNED_PASSWORDS` is set (`render.yaml` turns it on in production):
+  only the first 5 chars of the SHA-1 leave the process (k-anonymity), no API key
+  is needed, and it **fails open** — an HIBP outage must never block a signup,
+  and the local blocklist has already run. `fetchImpl` is injectable so tests
+  never hit the network.
+- **Existing accounts are covered at login, not just at signup.** `/api/auth/login`
+  runs `checkPassword()` on the credential it was handed and returns a
+  `passwordWarning` alongside the token. It **never blocks the sign-in** — a
+  breach hit is a prompt, not proof this account is compromised, and locking
+  someone out of the only screen that can fix it helps nobody. The portal shows
+  it as an advisory banner. `PUT /api/me/password` requires the current
+  password, applies the same policy to the new one, and sets `user.pwChangedAt`
+  — `userFromReq()` refuses any token issued before that, so changing a leaked
+  password signs out every other session. The route returns a fresh token; the
+  client must store it or its next request 401s.
+- **The dormant-account sweep cannot check passwords, and never will.**
+  They are stored as `scrypt(password, per-user salt)`; Have I Been Pwned needs
+  the SHA-1 of the *plaintext*. There is no path between the two, which is the
+  point of hashing — anything that could test a stored password would mean
+  keeping it reversibly, a far worse problem. So `runPasswordSweep()` reports
+  which accounts have never been examined (`pwCheckedAt`, stamped at signup,
+  login and change) and, under `PASSWORD_SWEEP=1`, emails those owners to come
+  and sign in — converting an unknowable account into a known one is the most
+  anyone can offer. Reporting is always on; only the email is gated, and each
+  account is prompted at most once per `PASSWORD_SWEEP_INTERVAL_DAYS`.
+- **Rate-limit counters are shared across instances when `DATABASE_URL` is
+  set.** `rateLimitHit()` in `store.js` does the whole fixed-window step in one
+  `INSERT … ON CONFLICT`, so two instances cannot both read the same count and
+  each allow a request. Without Postgres — or if a query fails — the limiter
+  falls back to this process's own counters, which bounds N instances at N× the
+  intended rate rather than dropping the limit entirely.
+- **Schema DDL runs under an advisory lock — keep it that way.** `CREATE TABLE
+  IF NOT EXISTS` is *not* atomic in Postgres: the check and the create are
+  separate steps, so instances booting together (every deploy and scale-up) can
+  both find a table missing and one dies on a duplicate `pg_type` row. The loser
+  then fell through to the **file store** and served its own private copy of the
+  data while looking healthy. `ensureSchema()` in `store.js` wraps all DDL in a
+  transaction holding `pg_advisory_xact_lock`. Add new tables there, not as
+  loose `pool.query` calls.
+- **`src/App.test.jsx` mounts the shell — keep it passing, and extend it when you
+  change `App.jsx`.** The sibling repo shipped a `ReferenceError: Cannot access
+  'onboard' before initialization` to `main` with a fully green build: every
+  suite covered the API or pure logic, nothing mounted React, and the app
+  rendered only the `ErrorBoundary` fallback on every load while CI stayed green.
+  These tests mount `App` inside `ErrorBoundary` exactly as `src/main.jsx` does
+  and fail on anything that throws during render.
+- A related trap they guard: **declare state above the effects that read it.**
+  Dependency arrays are evaluated during render at their position in the
+  component body, so a `const` declared further down puts the variable in the
+  temporal dead zone and throws on first mount.
+- The two runners must not see each other's files: `vitest.setup.js` lives at the
+  repo root (not `test/`, which `node --test` scans), and the Vitest `include` in
+  `vite.config.js` is narrowed to `src/**`.
 - `server.test.js` and `routes.test.js` each spawn **their own** server on their
   own port and temp store. That is deliberate: the auth endpoints are
   rate-limited per IP+path, so sharing a server would make the files interfere

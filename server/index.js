@@ -1,8 +1,9 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { load, save, newId, newCode, overview, weakest, initStore } from "./store.js";
+import { load, save, newId, newCode, overview, weakest, initStore, rateLimitHit } from "./store.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "./auth.js";
+import { checkPassword } from "./password.js";
 import { sendEmail } from "./email.js";
 import { demoClaudeResponse } from "./demo.js";
 import { PLAN_CATALOG, getPlan, tracksForPlan, stripePriceFor, publicCatalog } from "./plans.js";
@@ -16,11 +17,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 dotenv.config();
 
 const app = express();
-// Behind a reverse proxy (Render, Heroku, nginx…) set TRUST_PROXY=1 so req.ip is
-// the real client address. Without it every visitor shares the proxy's IP, so one
-// busy user's rate limit throttles the whole site. Leave unset when clients
-// connect directly — trusting X-Forwarded-For there lets callers spoof their IP.
-if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
+// Behind a reverse proxy (Render, Heroku, nginx…) set TRUST_PROXY so req.ip is the
+// real client address. Without it every visitor shares the proxy's IP, so one busy
+// user's rate limit throttles the whole site. Leave it unset when clients connect
+// directly — trusting X-Forwarded-For there lets any caller spoof their IP and slip
+// the limiter entirely. Accepts a hop count ("1") or anything else Express
+// understands ("loopback", "10.0.0.0/8"), passed through rather than coerced.
+const TRUST_PROXY = (process.env.TRUST_PROXY || "").trim();
+if (TRUST_PROXY) app.set("trust proxy", /^\d+$/.test(TRUST_PROXY) ? Number(TRUST_PROXY) : TRUST_PROXY);
 // Lock CORS to your site in production by setting CORS_ORIGIN (comma-separated for several).
 const corsOrigins = (process.env.CORS_ORIGIN || "").split(",").map((s) => s.trim()).filter(Boolean);
 app.use(cors(corsOrigins.length ? { origin: corsOrigins } : {}));
@@ -36,13 +40,29 @@ app.use((_req, res, next) => {
 // move this to a shared store (Redis) or a gateway limit.
 const rateBuckets = new Map();
 setInterval(() => { const now = Date.now(); for (const [k, b] of rateBuckets) if (b.reset <= now) rateBuckets.delete(k); }, 60000).unref();
-const rateLimit = (max, windowMs) => (req, res, next) => {
+let sharedLimiterWarned = false;
+const rateLimit = (max, windowMs) => async (req, res, next) => {
   const key = `${req.ip}|${req.path}`;
   const now = Date.now();
-  let b = rateBuckets.get(key);
-  if (!b || b.reset <= now) { b = { count: 0, reset: now + windowMs }; rateBuckets.set(key, b); }
-  if (++b.count > max) {
-    res.setHeader("Retry-After", Math.ceil((b.reset - now) / 1000));
+  let hit = null;
+  try {
+    hit = await rateLimitHit(key, windowMs, now); // null unless Postgres is the backend
+  } catch (e) {
+    // A database blip must not take the site down, and must not silently drop the
+    // limit either — fall through to this process's own counter. Warn once so the
+    // logs say the limit is per-instance without a line per request.
+    if (!sharedLimiterWarned) {
+      sharedLimiterWarned = true;
+      console.error("  Rate limit: shared store unavailable (" + (e.message || e) + ") — using per-instance counters.");
+    }
+  }
+  if (!hit) {
+    let b = rateBuckets.get(key);
+    if (!b || b.reset <= now) { b = { count: 0, reset: now + windowMs }; rateBuckets.set(key, b); }
+    hit = { count: ++b.count, resetAt: b.reset };
+  }
+  if (hit.count > max) {
+    res.setHeader("Retry-After", Math.ceil((hit.resetAt - now) / 1000));
     return res.status(429).json({ error: "Too many requests — please wait a moment and try again." });
   }
   next();
@@ -133,7 +153,12 @@ app.post("/api/tts", aiLimit, async (req, res) => {
 function userFromReq(db, req) {
   const m = /^Bearer (.+)$/.exec(req.headers.authorization || "");
   const payload = m && verifyToken(m[1]);
-  return payload && db.users[payload.uid] ? db.users[payload.uid] : null;
+  const user = payload && db.users[payload.uid] ? db.users[payload.uid] : null;
+  // Tokens are stateless, so a password change can only be enforced here:
+  // anything issued before it is refused. Strict `<` keeps the replacement
+  // token minted in the same millisecond as the change itself valid.
+  if (user && user.pwChangedAt && payload.iat < user.pwChangedAt) return null;
+  return user;
 }
 const pub = (u) => ({ id: u.id, email: u.email, role: u.role, name: u.name, weeklyEmail: !!u.weeklyEmail, subs: u.subs || { junior: false, adult: false }, referralCode: u.referralCode || null, pendingBonus: u.pendingBonus || 0 });
 function canAccessChild(db, user, childId) {
@@ -158,10 +183,18 @@ const auth = (handler) => (req, res) => {
 };
 
 /* ---------- auth ---------- */
-app.post("/api/auth/signup", authLimit, (req, res) => {
+app.post("/api/auth/signup", authLimit, async (req, res) => {
   const { email, password, role = "parent", name = "" } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "Email and password are required." });
-  if (String(password).length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+  // Local rules (length, blocklist, context) plus the breach corpus when
+  // PWNED_PASSWORDS is set — see server/password.js for why there are no
+  // uppercase/digit/symbol rules. The message is safe to show the user.
+  //
+  // This await is deliberately BEFORE load(): everything from load() to save()
+  // below is synchronous, so the duplicate-email check and the write cannot be
+  // interleaved with another request. Awaiting in the middle would open that gap.
+  const weak = await checkPassword(password, { email });
+  if (weak) return res.status(400).json({ error: weak });
   if (!["parent", "teacher"].includes(role)) return res.status(400).json({ error: "Invalid role." });
   const db = load();
   const exists = Object.values(db.users).some((u) => u.email.toLowerCase() === String(email).toLowerCase());
@@ -175,18 +208,61 @@ app.post("/api/auth/signup", authLimit, (req, res) => {
     const referrer = Object.values(db.users).find((u) => (u.referralCode || "").toUpperCase() === refCode && u.id !== user.id);
     if (referrer) user.referredBy = referrer.id;
   }
+  user.pwCheckedAt = Date.now(); // the password just passed the full policy
   db.users[user.id] = user;
   save(db);
   res.json({ token: signToken({ uid: user.id }), user: pub(user) });
 });
 
-app.post("/api/auth/login", authLimit, (req, res) => {
+app.post("/api/auth/login", authLimit, async (req, res) => {
   const { email, password } = req.body || {};
   const db = load();
   const user = Object.values(db.users).find((u) => u.email.toLowerCase() === String(email || "").toLowerCase());
   if (!user || !verifyPassword(password, user.salt, user.hash)) return res.status(401).json({ error: "Wrong email or password." });
-  res.json({ token: signToken({ uid: user.id }), user: pub(user) });
+  // Accounts created before the password policy have never been checked, and a
+  // password can appear in a breach corpus long after it was chosen — so check
+  // the credential we were just handed. This NEVER blocks the login: a breach
+  // hit is a prompt to change the password, not evidence this account is
+  // compromised, and locking someone out of the account they need in order to
+  // fix it helps nobody. It is advisory only; the client shows a banner.
+  const passwordWarning = await checkPassword(password, { email: user.email });
+  // Record that this account's password has actually been examined. It is the
+  // only coverage signal there is: a stored scrypt hash cannot be tested, so
+  // "when did a human last type this password at us" is all we can know.
+  user.pwCheckedAt = Date.now();
+  save(db);
+  res.json({ token: signToken({ uid: user.id }), user: pub(user), passwordWarning });
 });
+
+// Change the password. Requires the current one, so a stolen token alone cannot
+// take the account over.
+app.put("/api/me/password", authLimit, auth(async (req, res, db, user) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!verifyPassword(currentPassword, user.salt, user.hash)) {
+      return res.status(401).json({ error: "Your current password is not right." });
+    }
+    if (verifyPassword(newPassword, user.salt, user.hash)) {
+      return res.status(400).json({ error: "That is the password you are already using." });
+    }
+    const weak = await checkPassword(newPassword, { email: user.email });
+    if (weak) return res.status(400).json({ error: weak });
+
+    const { salt, hash } = hashPassword(newPassword);
+    user.salt = salt;
+    user.hash = hash;
+    // End every session opened before this moment (see userFromReq). If the old
+    // password leaked, changing it has to log out whoever else was using it —
+    // otherwise the change is cosmetic for as long as their token lives.
+    user.pwChangedAt = Date.now();
+    user.pwCheckedAt = user.pwChangedAt;
+    save(db);
+    // ...which includes the caller's own session, so hand back a fresh token.
+    res.json({ token: signToken({ uid: user.id }), user: pub(user) });
+  } catch {
+    res.status(500).json({ error: "Could not change the password. Please try again." });
+  }
+}));
 
 app.get("/api/me", auth((_req, res, _db, user) => res.json({ user: pub(user) })));
 
@@ -458,6 +534,96 @@ app.post("/api/cron/weekly-reports", async (req, res) => {
 
 if (process.env.WEEKLY_EMAILS_INPROCESS === "1") {
   setInterval(() => { runWeeklyReports().then((n) => n && console.log("weekly emails sent:", n)).catch(() => {}); }, 24 * 3600 * 1000);
+}
+
+/* ---------- dormant-account password sweep ---------- */
+// What this CANNOT do, and why it is not a shortcoming to fix later:
+//
+// Passwords are stored as scrypt(password, per-user salt). Have I Been Pwned
+// needs the SHA-1 of the PLAINTEXT. There is no way to get from one to the
+// other — that is the entire purpose of hashing a password, and the storage is
+// correct as it stands. So no background job can ever test a dormant account's
+// password against a breach corpus. Anything that could would require keeping
+// the password in a reversible or weakly-hashed form, which would be a far
+// worse problem than the one it solved.
+//
+// What is achievable: know WHICH accounts have never had their password
+// examined (pwCheckedAt is stamped at signup, login and change), and ask their
+// owner to sign in so the login-time check can run. That converts an unknowable
+// account into a known one, which is the most anyone can offer here.
+const DAY = 24 * 3600 * 1000;
+const sweepDays = (name, fallback) => Math.max(1, Number(process.env[name] || fallback)) * DAY;
+
+// Not exported: this module calls app.listen() on import, so the only way to
+// reach this is over HTTP — which is what the tests do.
+function passwordCoverage(db, now = Date.now()) {
+  const staleAfter = sweepDays("PASSWORD_SWEEP_STALE_DAYS", 180);
+  const rows = Object.values(db.users);
+  const stale = rows.filter((u) => !u.pwCheckedAt || now - u.pwCheckedAt > staleAfter);
+  return {
+    accounts: rows.length,
+    checked: rows.length - stale.length,
+    neverChecked: rows.filter((u) => !u.pwCheckedAt).length,
+    stale: stale.length,
+    staleAfterDays: staleAfter / DAY,
+  };
+}
+
+// Emails dormant owners a prompt to sign in. Off unless PASSWORD_SWEEP=1, and
+// each account is prompted at most once per PASSWORD_SWEEP_INTERVAL_DAYS — a
+// security nudge that arrives repeatedly is just spam, and gets filtered.
+async function runPasswordSweep({ now = Date.now(), dryRun = false } = {}) {
+  const db = load();
+  const staleAfter = sweepDays("PASSWORD_SWEEP_STALE_DAYS", 180);
+  const promptEvery = sweepDays("PASSWORD_SWEEP_INTERVAL_DAYS", 90);
+  const coverage = passwordCoverage(db, now);
+  const due = Object.values(db.users).filter(
+    (u) => (!u.pwCheckedAt || now - u.pwCheckedAt > staleAfter) &&
+           (!u.pwPromptedAt || now - u.pwPromptedAt > promptEvery),
+  );
+  if (dryRun || process.env.PASSWORD_SWEEP !== "1") {
+    return { ...coverage, due: due.length, emailed: 0, sent: false };
+  }
+
+  let emailed = 0;
+  for (const user of due) {
+    // Deliberately does NOT claim their password is bad — we cannot know that.
+    // It says what is true: we will check it the next time they sign in.
+    const text = [
+      `Hello${user.name ? " " + user.name : ""},`,
+      "",
+      "It has been a while since you signed in to Education Academy.",
+      "",
+      "We store your password hashed, so we genuinely cannot read it or check it for you.",
+      "What we can do is check it against known data breaches the moment you next sign in,",
+      "and tell you there and then if it is worth changing. It takes a few seconds.",
+      "",
+      "If you would rather change it straight away, sign in and open the Parent & Teacher",
+      "portal — there is a Change password button on your account.",
+      "",
+      "— Mochi 🐾",
+    ].join("\n");
+    try {
+      await sendEmail({ to: user.email, subject: "A quick password check-in", text });
+      user.pwPromptedAt = now;
+      emailed++;
+    } catch (e) { console.error("password sweep email failed for", user.email, String(e)); }
+  }
+  save(db);
+  return { ...coverage, due: due.length, emailed, sent: true };
+}
+
+// Report coverage (always safe) and, when enabled, send the prompts.
+// POST /api/cron/password-sweep?dry=1 reports without sending.
+app.post("/api/cron/password-sweep", async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  if (secret && req.headers["x-cron-secret"] !== secret) return res.status(401).json({ error: "Bad cron secret." });
+  try { res.json({ ok: true, ...(await runPasswordSweep({ dryRun: req.query.dry === "1" })) }); }
+  catch (e) { res.status(500).json({ error: String(e) }); }
+});
+
+if (process.env.WEEKLY_EMAILS_INPROCESS === "1") {
+  setInterval(() => { runPasswordSweep().then((r) => r.emailed && console.log("password prompts sent:", r.emailed)).catch(() => {}); }, 7 * DAY);
 }
 
 /* ---------- admin: preview / trigger a parent's report on demand ---------- */
