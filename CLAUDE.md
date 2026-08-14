@@ -2,33 +2,59 @@
 
 Guidance for AI assistants (Claude Code and others) working in this repository.
 
+## Read this first: the repo is deprecated
+
+`README.md` opens with a deprecation banner. This repo is a **working copy** of
+Education Academy; the canonical repo — the one behind the live site — is
+[`muntherali019-tech/Higher-education-`](https://github.com/muntherali019-tech/Higher-education-).
+This copy is kept for history.
+
+Practical consequence: **the two repos have diverged**, so don't assume a change
+here lands anywhere. Things that live only here are the extracted screen
+components wired into `App.jsx`, `server/plans.js` (the multi-tier plan catalog),
+`server/demo.js`, the API rate limiter, `src/lib/worksheet.js`, the Relic Run
+arcade game and the model-orchestrator service. Things that live only in the
+canonical repo include gift subscriptions, `src/lib/analytics.js` + the funnel
+endpoints, `src/components/Worksheet.jsx`/`Gift.jsx`, `src/lib/printable.js` and
+the Vitest test setup. Before porting anything, check the other repo's current
+state rather than trusting either CLAUDE.md alone.
+
+If someone asks for work "on Education Academy" without naming a repo, ask which
+one they mean.
+
 ## What this is
 
-**Whisker Academy** (package name `whisker-academy`; the repo is `relic-run`) is a
+**Education Academy** (package name `whisker-academy`; the repo is `relic-run`) is a
 cat-themed educational game for UK KS1–KS3 and Higher Education learners. Mochi, the
 cat mascot, guides children through quizzes; the app also offers AI homework marking,
-a scan-and-solve helper, a spoken AI tutor, language practice, and a grown-ups portal
-for parents/teachers. Everything is built from **one React codebase** that ships to
-three targets (website, Play Store app, single-file HTML) plus a small Express backend
-that proxies AI calls and holds accounts.
+a scan-and-solve helper, a spoken AI tutor, language practice, printable worksheets,
+and a grown-ups portal for parents/teachers. Everything is built from **one React
+codebase** that ships to three targets (website, Play Store app, single-file HTML)
+plus a small Express backend that proxies AI calls and holds accounts.
 
-There is a **separate, unrelated subproject** in `reelmint/` — an AI video/image/copy
-studio (Express + zero-build static app). It has its own `package.json`, README, CI
-workflow, and deploy config. Treat it as a distinct project; do not mix its dependencies
-or tooling with the main app. See "Reelmint subproject" below before working in it.
+Also in the repo: **🏛️ Relic Run** (`public/relicrun/`, served at `/relicrun/`) — a
+standalone retro Pac-Man-style arcade game, and the reason for the repo's name. See
+[Relic Run](#relic-run-publicrelicrun) below.
+
+> The **Reelmint** AI video studio used to live in `reelmint/`. It has been extracted
+> into its own repository and the directory is gone; its history is in this repo's
+> git log before the extraction commit. Ignore any older doc that still references it.
 
 ## Tech stack
 
 - **Frontend:** React 18 + Vite 8, plain CSS (`src/styles.css`), `lucide-react` icons.
   No CSS framework, no state library — state is a single object in `App.jsx`.
-- **Backend:** Node (ESM) + Express 4. No TypeScript anywhere. `"type": "module"`.
+- **Backend:** Node (ESM) + Express 4. No TypeScript in the app itself. `"type": "module"`.
 - **Persistence:** file-based JSON store by default, Postgres (single JSONB row) when
   `DATABASE_URL` is set (`pg` is an optional dependency).
 - **AI:** Anthropic Claude, called only from the server so the API key never reaches
   the browser. Client sends a `feature` hint; the server routes per feature to a model.
 - **Mobile:** Capacitor wraps the `app` build for Google Play (`@capacitor/android`).
-- **Tests:** Node's built-in `node:test` runner. No Jest/Vitest, no extra test deps.
-- **Node:** use Node 22 (CI uses 22 for the main app, 20 for reelmint).
+- **Tests:** Node's built-in `node:test` runner. No Jest/Vitest, no extra test runner
+  deps (`nock` is the one test-only helper, used by the orchestrator integration test).
+- **Node:** `engines` allows `^20.19.0 || >=22.12.0`; CI runs 22. Use 22 — the
+  orchestrator integration test is TypeScript and relies on Node's built-in type
+  stripping.
 
 ## Repository layout
 
@@ -42,6 +68,7 @@ src/
     screens/              One component per screen (Home, Play, Solve, Mark, Dashboard,
                           Gate, SubjectMenu, Plans, Paywall, AskMochi, Badges,
                           Leaderboard, Shop, SettingsScreen, + shared ConsentCard).
+                          All 14 are imported and rendered by App.jsx.
     GrownUps.jsx          Parent/teacher portal (lazy-loaded).
     Languages.jsx         Language practice (lazy-loaded).
     Courses.jsx           Higher-Ed courses (lazy-loaded).
@@ -54,20 +81,28 @@ src/
     languages.js          LANGUAGES list.
     courses.js            Higher-Ed course definitions.
   lib/                    Framework-free logic modules (see below).
+  services/
+    model-orchestrator/   Image-generation provider abstraction (TypeScript, see below).
 server/
   index.js                Express app: AI proxy, TTS, auth, accounts, Stripe, email,
                           leaderboard, weekly-report cron. All routes under /api.
   auth.js                 Password hashing + signed-token auth (built-in dev auth).
   store.js                Persistence backend (file or Postgres); routes use load()/save().
+  plans.js                PLAN_CATALOG — the single source of truth for what can be
+                          bought and which access tracks it unlocks. Served at GET /api/plans.
+  demo.js                 Keyless demo mode: feature-shaped sample content for every
+                          AI route so a no-key deploy is fully clickable.
   email.js                Weekly parent emails (console/resend/sendgrid providers).
-test/                     node:test suites: bank, progress, plans, worksheet,
+test/                     node:test suites: bank, plans, progress, worksheet,
                           server (auth/access control), routes (everything else)
-reelmint/                 Separate AI studio subproject (own package.json + CI).
+tests/integration/        node:test integration suite for the model orchestrator (TS)
+public/relicrun/          The standalone Relic Run arcade game (see below)
+marketing/                Static legal/marketing pages served at clean URLs
 .claude/
   commands/               15 optimization prompts, runnable as slash commands.
   hooks/session-start.sh  Installs deps on Claude Code web session start.
   settings.json           Harness settings.
-.github/workflows/        ci.yml (reelmint), main-ci.yml (this app).
+.github/workflows/main-ci.yml   The only CI workflow.
 TODO.md                   Status of the 15 optimization passes + verified end state.
 ```
 
@@ -78,24 +113,23 @@ stars, rounds), `i18n.js` (`t`/`tf`/`useT`/`setUiLang`), `speech.js` (TTS/voice)
 `recognition.js` (speech-to-text), `billing.js` (mock/RevenueCat/Stripe), `cloud.js`
 (server account sync), `celebrate.js` (confetti), `mochiShop.js` (shop items),
 `motivation.js`/`coach.js` (encouragement copy), `achievements.js` (badges),
-`review.js` (spaced review), `trial.js` (free-trial state), `examCache.js`,
-`reminders.js` (local notifications), `share.js`, `platform.js` (`isWeb`).
+`review.js` (spaced review), `trial.js` (free-trial state), `worksheet.js` (pure
+printable-worksheet builder over the offline bank — zero AI cost, unit tested),
+`examCache.js`, `reminders.js` (local notifications), `share.js`, `platform.js` (`isWeb`).
 
 ## Commands
 
 ```bash
-npm install            # install deps (session-start hook does this on Claude web)
+npm install            # install deps (session-start hook does this on Claude Code web)
 npm run dev            # Vite dev server (web mode) on :5173, proxies /api -> :8787
 npm run server         # Express backend on :8787
 npm start              # run web + api together (concurrently)
-npm test               # node:test — the full suite (run this before committing)
+npm test               # node --test — the full suite (run this before committing)
 npm run build          # web build  -> dist-web  (alias: build:web)
 npm run build:app      # Capacitor build -> dist-app
 npm run build:onefile  # single self-contained index.html -> dist-onefile
 npm run preview        # preview the built dist-web
 ```
-
-Reelmint (from `reelmint/`): `npm install` then `npm start` (or `npm run dev`). No build step.
 
 ## Build modes (one codebase, three outputs)
 
@@ -109,6 +143,32 @@ Vite `--mode` selects the target (see `vite.config.js`):
 Per-mode env comes from `.env.web` / `.env.app` / `.env.onefile`; secrets and local
 config go in `.env` (copy from `.env.example`). `VITE_*` vars are build-time/client-safe;
 everything else is server-only.
+
+## Relic Run (`public/relicrun/`)
+
+A **zero-dependency, zero-build** arcade game: three plain files (`index.html`,
+`game.js`, `levels.js`) drawn to a `<canvas>`, served straight from `public/` at
+`/relicrun/` and linked from the app's home screen. Five levels model real
+archaeological sites; guards sweep entrance→exit while the player collects
+historically accurate artifacts, each showing a museum-card fact.
+
+It shares nothing with the React app — no imports in either direction, no build
+step, no tests. Edit the three files directly and reload. Keep it dependency-free.
+
+## Model orchestrator (`src/services/model-orchestrator/`)
+
+The one piece of **TypeScript** in the codebase. `SDXLOrchestrator` implements the
+`ModelOrchestrator` interface from `types.ts`: prompt in, `ModelResponse` out, via a
+Stability-SDXL-compatible HTTP endpoint (`axios`). It tolerates three provider
+response shapes (`artifacts[].base64`, `output[].url`/`url`, unknown raw body) and
+falls back to a `mock://` URL when no `apiUrl` is configured. Config comes from
+`SDXL_API_KEY` / `SDXL_API_URL` / `SDXL_MODEL`.
+
+It is **not wired into the app or the server** — it's a standalone service module
+with an integration test (`tests/integration/orchestrator.integration.test.ts`, which
+stubs HTTP with `nock`). Node's built-in type stripping runs the `.ts` test directly
+under `node --test`; there is no compile step, so keep the TypeScript to what
+stripping supports (no `enum`, no parameter properties, no `namespace`).
 
 ## Conventions & rules
 
@@ -138,18 +198,34 @@ everything else is server-only.
   always safe to show a learner.
 - **Server storage is swappable** — route handlers only call `load()`/`save()`/helpers
   from `server/store.js`. Don't reach into a specific backend from a route.
+- **Plans belong in `server/plans.js`.** A new tier maps onto the two existing access
+  tracks (`junior`, `adult`), so nothing downstream changes. Don't hard-code plan ids
+  or Stripe prices in routes.
+- **Demo mode must stay believable.** Every AI feature has a keyless fallback in
+  `server/demo.js` in the exact JSON shape the client parses. Add one whenever you add
+  an AI feature, or a no-key deploy breaks.
 - **Child-safety/privacy:** homework and scan photos live in component memory only
   (never persisted or synced). No third-party trackers. Account deletion cascades.
   Keep it that way.
 
+### API hardening (already in place — don't regress it)
+
+`server/index.js` carries a hand-rolled, dependency-free security layer:
+
+- **Rate limits** — `aiLimit` (30 requests / 5 min per IP) on `/api/claude` and
+  `/api/tts`; `authLimit` (10 / 15 min per IP) on signup and login.
+- **CORS** locked to `CORS_ORIGIN` (comma-separated) in production.
+- Model allow-list and a `max_tokens` cap on the AI proxy; security headers;
+  8-character password minimum; a startup warning when `AUTH_SECRET` is unset.
+
 ## Testing & verification
 
-- `npm test` runs six suites over real HTTP and pure logic, all keyless: `server`
-  (auth, child access control, cascade deletes, rate limiting), `routes`
+- `npm test` runs `node --test` over both test directories — **~60 tests, all keyless**:
+  `server` (auth, child access control, cascade deletes, rate limiting), `routes`
   (goals, classes, leaderboard, referrals, prefs, TTS, cron, admin, Stripe
   portal/webhook), `progress` (streaks/stars), `bank` (offline-bank integrity),
-  `plans` and `worksheet`. All must pass. **Every `/api` route has coverage —
-  keep it that way when adding one.**
+  `plans`, `worksheet`, and `tests/integration/orchestrator.integration.test.ts`.
+  All must pass. **Every `/api` route has coverage — keep it that way when adding one.**
 - `server.test.js` and `routes.test.js` each spawn **their own** server on their
   own port and temp store. That is deliberate: the auth endpoints are
   rate-limited per IP+path, so sharing a server would make the files interfere
@@ -166,11 +242,13 @@ everything else is server-only.
 
 ## CI
 
-- `.github/workflows/main-ci.yml` (this app): `npm ci` → `npm audit --omit=dev --audit-level=high`
-  → `npm test` → `node --check server/*.js` → build web/app/onefile → API smoke test.
-- `.github/workflows/ci.yml` (reelmint, scoped to `reelmint/`).
+`.github/workflows/main-ci.yml` ("Main App CI") is the only workflow:
+`npm ci` → `npm audit --omit=dev --audit-level=high` → `npm audit || true`
+(report-only) → `npm test` → `node --check server/*.js` → build web/app/onefile →
+demo-mode API smoke test.
 
-Match CI locally before pushing: tests green, audit clean, all three builds succeed.
+Match CI locally before pushing: tests green, runtime audit clean, all three builds
+succeed.
 
 ## Git workflow
 
@@ -186,40 +264,15 @@ Match CI locally before pushing: tests green, audit clean, all three builds succ
 
 - Adding/changing a screen or the app flow → `src/App.jsx` + `src/components/screens/`.
 - Question content → `src/data/bank.js` (offline) and `src/data/curriculum.js`.
-- AI behavior → `src/lib/api.js` (client) and `server/index.js` (proxy + model routing).
+- AI behavior → `src/lib/api.js` (client) and `server/index.js` (proxy + model routing),
+  with the keyless fallbacks in `server/demo.js`.
+- Plans, pricing, entitlements → `server/plans.js`.
 - Accounts / auth / Stripe / email → `server/index.js`, `server/auth.js`,
   `server/store.js`, `server/email.js`.
+- The arcade game → `public/relicrun/`.
 - Config / secrets / env → `.env.example` (documents every variable) and the
   per-mode `.env.web` / `.env.app` / `.env.onefile`.
 - Current optimization status and remaining follow-ups → `TODO.md`.
 
-## Reelmint subproject (`reelmint/`)
-
-A distinct product — an AI studio that mints short/long videos, images and copy from
-one prompt — **not** part of Whisker Academy. It's a single Express service serving a
-**zero-build** static app (plain HTML/CSS/JS in `public/`), Node 20, ESM. Uses
-`@anthropic-ai/sdk`, `express`, and optional `pg`; run/build/test only from inside
-`reelmint/`.
-
-- **Commands:** `cd reelmint && npm install && npm start` (`:3000`); `npm test`
-  (`node:test`, no key needed). No build step, no bundler.
-- **Layout:** `server/index.js` (routes), `server/ai.js` (Anthropic + per-feature model
-  routing + demo fallback), `server/content.js` (believable demo library + pure helpers:
-  storyboard decoration, SRT builder — **unit-tested**), `server/auth.js` (accounts,
-  tokens, monthly credits), `server/billing.js` (Stripe via REST, no SDK),
-  `server/images.js` (photoreal providers + Smart-Slide fallback), `server/store.js`
-  (Postgres or JSON file behind one async API). Front-end: `public/{index.html,app.js,styles.css}`.
-- **Studio tools (7):** Create (storyboard→video), AI Editor (voice/text), Hook Lab
-  (A/B hook+thumbnail variants), Series Planner (multi-day calendar), Image (Smart
-  Slides / photoreal), Scan (vision), Repurpose (transcript→clips). Plus Brand Kit and
-  `.srt` subtitle export. Premium tools are credit-gated server-side (`spendCredit`) or
-  plan-gated client-side (`isPro()` = Creator/Studio).
-- **Model routing:** quality model `AI_MODEL` (default `claude-opus-4-8`) for
-  storyboards/edits/vision/image specs; fast model `AI_MODEL_FAST` (default
-  `claude-haiku-4-5`) for captions/hooks. Feature→tier map lives in `server/ai.js`.
-- **Demo mode** (no `ANTHROPIC_API_KEY`): every route returns hand-authored, topic-aware
-  sample content from `server/content.js` — never lorem. Keep it that way when adding
-  features so the studio always demos convincingly.
-- **Conventions:** no key ever reaches the browser; keep the app zero-build (no bundler,
-  inline nothing exotic); put pure/testable logic in `server/content.js`; media rendering
-  stays client-side (Canvas + MediaRecorder). Its CI is `.github/workflows/ci.yml`.
+**Keep this file honest** — update it in the same change as any structural change
+(new module, new command, schema change, tooling swap).
